@@ -1,0 +1,122 @@
+---
+title: "workspace"
+author: "rp"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(AUC)
+```
+
+```{r}
+
+library(tidyverse)
+library(AUC)
+
+get_sample <- function(auc, n_samples, prevalence, scale=T){
+  # https://stats.stackexchange.com/questions/422926/generate-synthetic-data-given-auc
+  t <- sqrt(log(1/(1-auc)**2))
+  z <- t-((2.515517 + 0.802853*t + 0.0103328*t**2) / 
+            (1 + 1.432788*t + 0.189269*t**2 + 0.001308*t**3))
+  d <- z*sqrt(2)
+  
+  n_neg <- round(n_samples*(1-prevalence))
+  n_pos <- round(n_samples*prevalence)
+  
+  x <- c(rnorm(n_neg, mean=0), rnorm(n_pos, mean=d))
+  y <- c(rep(0, n_neg), rep(1, n_pos))
+  
+  if(scale){
+    x <- (x-min(x)) / (max(x)-min(x))
+  }
+  return(data.frame(predicted=x, actual=y))
+}
+
+df_preds <- get_sample(auc=0.8, n_samples=2000, prevalence=0.1) %>%
+  mutate(predicted_interval=cut(predicted, seq(0,1,0.1), labels=FALSE)/10-0.05)
+
+# df_preds %>%
+#   ggplot(aes(predicted, fill=as.factor(actual))) +
+#   geom_density(alpha=0.3) +
+#   theme_bw()
+
+# problem with this approach is that it doesn't lead to well calibrated predictions
+df_preds %>%
+  group_by(predicted_interval) %>%
+  summarize(mean_actual=mean(actual)) %>%
+  ggplot(aes(predicted_interval, mean_actual)) +
+  geom_line(alpha=0.3) +
+  geom_point()+
+  geom_abline()+
+  theme_bw() +
+  scale_x_continuous(limits=c(0, 1)) + scale_y_continuous(limits=c(0, 1))
+
+
+```
+
+
+```{r}
+
+get_beta_preds <- function(alpha, beta, n){
+  cat(glue::glue("population prevalence:{round(alpha/(alpha+beta), 4)}\n\n"))
+  predicted_probs <- rbeta(n=n, shape1=alpha, shape2=beta)
+  f <- function(x) sample(c(0, 1), 1, prob=c(1-x, x))
+  predicted_classes <- map_dbl(predicted_probs, f)
+  
+  cat(glue::glue("observed AUC:{round(auc(roc(predicted_probs, as.factor(predicted_classes))), 4)}"))
+  data.frame(predicted=predicted_probs, actual=predicted_classes)
+}
+
+# these give the same prevalence but different AUC
+df_beta_preds <- get_beta_preds(1, 2, 100000)
+df_beta_preds <- get_beta_preds(1.5, 3, 100000)
+
+
+df_beta_preds %>%
+  mutate(predicted_interval=cut(predicted, seq(0,1,0.1), labels=FALSE)/10-0.05)%>%
+  group_by(predicted_interval) %>%
+  summarize(mean_actual=mean(actual)) %>%
+  ggplot(aes(predicted_interval, mean_actual)) +
+  geom_line(alpha=0.3) +
+  geom_point()+
+  geom_abline()+
+  theme_bw() +
+  scale_x_continuous(limits=c(0, 1)) + scale_y_continuous(limits=c(0, 1))
+
+# df_beta_preds %>%
+#   ggplot(aes(predicted, fill=as.factor(actual))) +
+#   geom_density(alpha=0.3) +
+#   theme_bw()
+
+# this approach seems to be good at giving well-calibrated predictions but
+# I don't know how what the "population" AUC would be for a given beta-distribution
+# (under the assumption that the predictions are well-calibrated)
+# have just posted a question on cross-validated: https://stats.stackexchange.com/questions/562000/how-to-simulate-a-calibrated-prediction-model-given-prevalence-and-auc
+
+```
+
+```{r}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
