@@ -1,18 +1,33 @@
----
-title: "workspace"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: rmarkdown::github_document
----
+workspace
+================
+02 February, 2022
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+``` r
+library(tidyverse)
 ```
 
-```{r}
+    ## -- Attaching packages --------------------------------------- tidyverse 1.3.1 --
 
-library(tidyverse)
+    ## v ggplot2 3.3.3     v purrr   0.3.4
+    ## v tibble  3.1.2     v dplyr   1.0.6
+    ## v tidyr   1.1.3     v stringr 1.4.0
+    ## v readr   1.4.0     v forcats 0.5.1
+
+    ## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
+    ## x dplyr::filter() masks stats::filter()
+    ## x dplyr::lag()    masks stats::lag()
+
+``` r
 library(AUC)
+```
 
+    ## Warning: package 'AUC' was built under R version 4.1.1
+
+    ## AUC 0.3.0
+
+    ## Type AUCNews() to see the change log and ?AUC to get an overview.
+
+``` r
 get_sample <- function(auc, n_samples, prevalence, scale=T){
   # https://stats.stackexchange.com/questions/422926/generate-synthetic-data-given-auc
   t <- sqrt(log(1/(1-auc)**2))
@@ -50,11 +65,15 @@ df_preds %>%
   geom_abline()+
   theme_bw() +
   scale_x_continuous(limits=c(0, 1)) + scale_y_continuous(limits=c(0, 1))
-
-
 ```
 
-```{r}
+    ## Warning: Removed 1 row(s) containing missing values (geom_path).
+
+    ## Warning: Removed 1 rows containing missing values (geom_point).
+
+![](workspace_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->
+
+``` r
 get_alpha <- function(beta, p){
   -(beta*p)/(p-1)
 }
@@ -98,25 +117,31 @@ df_beta_preds %>%
   geom_abline()+
   theme_bw() +
   scale_x_continuous(limits=c(0, 1)) + scale_y_continuous(limits=c(0, 1))
+```
 
+![](workspace_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
+
+``` r
 df_beta_preds %>%
   ggplot(aes(predicted, fill=as.factor(actual))) +
   geom_density(alpha=0.3) +
   theme_bw()
+```
 
+![](workspace_files/figure-gfm/unnamed-chunk-2-2.png)<!-- -->
+
+``` r
 # this approach seems to be good at giving well-calibrated predictions but
 # I don't know how what the "population" AUC would be for a given beta-distribution
 # (under the assumption that the predictions are well-calibrated)
 # have just posted a question on cross-validated: https://stats.stackexchange.com/questions/562000/how-to-simulate-a-calibrated-prediction-model-given-prevalence-and-auc
-
 ```
-
 
 # Simulate prediction models from beta distribution to see association with AUC
 
 ### Given spread of input alphas and baseline prevalence (to compute the relevant beta)
 
-```{r}
+``` r
 df_alpha_vs_auc <- data.frame(alpha=seq(0.01, 5, by=0.01))
 df_alpha_vs_auc$auc <- map_dbl(.x=df_alpha_vs_auc$alpha, function(x) get_beta_preds(alpha=x, beta=NULL, p=0.1, n=10000))
 
@@ -124,11 +149,15 @@ df_alpha_vs_auc %>%
   ggplot(aes(alpha, auc)) + 
   geom_point(alpha=0.1) + 
   geom_smooth(method="loess")
-
 ```
 
+    ## `geom_smooth()` using formula 'y ~ x'
+
+![](workspace_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+
 ### Given spread of input betas and baseline prevalence (to compute the relevant alphas)
-```{r}
+
+``` r
 df_beta_vs_auc <- data.frame(beta=seq(0.01, 5, by=0.01))
 df_beta_vs_auc$auc <- map_dbl(.x=df_beta_vs_auc$beta, function(x) get_beta_preds(alpha=NULL, beta=x, p=0.1, n=10000))
 
@@ -138,35 +167,6 @@ df_beta_vs_auc %>%
   geom_smooth(method="loess")
 ```
 
+    ## `geom_smooth()` using formula 'y ~ x'
 
-```{r, include=FALSE}
-f_plot <- function(alpha, p){
-  data.frame(x=c(0,1)) %>%
-    ggplot(aes(x=x)) +
-    stat_function(
-      aes(x=x, y=..y..),
-      fun=dbeta, 
-      args=list(shape1=alpha, shape2=(alpha-alpha*p)/p)
-    )
-}
-
-f_plot2 <- function(beta, p){
-  alpha <- -(beta*p)/(p-1)
-  print(alpha)
-  data.frame(x=c(0,1)) %>%
-    ggplot(aes(x=x)) +
-    stat_function(
-      aes(x=x, y=..y..),
-      fun=dbeta, 
-      args=list(shape1=alpha, shape2=beta)
-    )
-}
-
-
-f_plot2(beta=1.5, p=0.3)
-f_plot(alpha=1, p=0.5)
-f_plot(alpha=1.5, p=0.5)
-f_plot(alpha=2, p=0.5)
-f_plot(alpha=10, p=0.5)
-
-```
+![](workspace_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
