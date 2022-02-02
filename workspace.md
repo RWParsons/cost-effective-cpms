@@ -18,16 +18,6 @@ library(tidyverse)
     ## x dplyr::lag()    masks stats::lag()
 
 ``` r
-library(AUC)
-```
-
-    ## Warning: package 'AUC' was built under R version 4.1.1
-
-    ## AUC 0.3.0
-
-    ## Type AUCNews() to see the change log and ?AUC to get an overview.
-
-``` r
 get_sample <- function(auc, n_samples, prevalence, scale=T){
   # https://stats.stackexchange.com/questions/422926/generate-synthetic-data-given-auc
   t <- sqrt(log(1/(1-auc)**2))
@@ -74,34 +64,7 @@ df_preds %>%
 ![](workspace_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->
 
 ``` r
-get_alpha <- function(beta, p){
-  -(beta*p)/(p-1)
-}
-
-get_beta <- function(alpha, p){
-  (alpha-alpha*p)/p
-}
-
-get_beta_preds <- function(alpha=NULL, beta=NULL, p=NULL, n, return_preds=FALSE){
-  if(is.null(alpha)){
-    alpha <- get_alpha(beta=beta, p=p)
-  }
-  if(is.null(beta)){
-    beta <- get_beta(alpha=alpha, p=p)
-  }
-  
-  # cat(glue::glue("population prevalence:{round(alpha/(alpha+beta), 4)}\n\n"))
-  predicted_probs <- rbeta(n=n, shape1=alpha, shape2=beta)
-  f <- function(x) sample(c(0, 1), 1, prob=c(1-x, x))
-  predicted_classes <- map_dbl(predicted_probs, f)
-  
-  # cat(glue::glue("observed AUC:{round(auc(roc(predicted_probs, as.factor(predicted_classes))), 4)}"))
-  if(return_preds){
-    return(data.frame(predicted=predicted_probs, actual=predicted_classes))
-  }
-  return(auc(roc(predicted_probs, as.factor(predicted_classes))))
-}
-
+source("src/utils.R")
 
 # these give the same prevalence but different AUC
 # df_beta_preds <- get_beta_preds(alpha=1, beta=2, n=100000, return_preds=TRUE)
@@ -143,7 +106,10 @@ df_beta_preds %>%
 
 ``` r
 df_alpha_vs_auc <- data.frame(alpha=seq(0.01, 5, by=0.01))
-df_alpha_vs_auc$auc <- map_dbl(.x=df_alpha_vs_auc$alpha, function(x) get_beta_preds(alpha=x, beta=NULL, p=0.1, n=10000))
+df_alpha_vs_auc$auc <- map_dbl(
+  .x=df_alpha_vs_auc$alpha, 
+  function(x) get_beta_preds(alpha=x, beta=NULL, p=0.1, n=10000)
+)
 
 df_alpha_vs_auc %>%
   ggplot(aes(alpha, auc)) + 
@@ -159,7 +125,10 @@ df_alpha_vs_auc %>%
 
 ``` r
 df_beta_vs_auc <- data.frame(beta=seq(0.01, 5, by=0.01))
-df_beta_vs_auc$auc <- map_dbl(.x=df_beta_vs_auc$beta, function(x) get_beta_preds(alpha=NULL, beta=x, p=0.1, n=10000))
+df_beta_vs_auc$auc <- map_dbl(
+  .x=df_beta_vs_auc$beta, 
+  function(x) get_beta_preds(alpha=NULL, beta=x, p=0.1, n=10000)
+)
 
 df_beta_vs_auc %>%
   ggplot(aes(beta, auc)) + 
@@ -170,3 +139,54 @@ df_beta_vs_auc %>%
     ## `geom_smooth()` using formula 'y ~ x'
 
 ![](workspace_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+
+# more realistic case where the selection of a threshold is performed on smaller data
+
+``` r
+df_preds <- get_beta_preds(alpha=get_alpha(beta=2.5, p=0.1), beta=2.5, p=0.1, n=1000, return_preds=TRUE)
+
+df_pt_costs <- data.frame(pt=seq(0.05, 0.95,0.01))
+df_pt_costs$mean_cost <- map_dbl(
+  df_pt_costs$pt, 
+  function(x)classify_samples(predicted=df_preds$predicted, actual=df_preds$actual, pt=x, costs=costs)
+)
+
+cost_effective_pt <- slice(arrange(df_pt_costs, mean_cost),1)$pt
+
+rocobj <- pROC::roc(as.factor(df_preds$actual), df_preds$predicted)
+```
+
+    ## Setting levels: control = 0, case = 1
+
+    ## Setting direction: controls < cases
+
+``` r
+youden_pt <- pROC::coords(rocobj, "best")$threshold
+
+
+# validate on larger dataset (10x bigger than development)
+df_valid <- get_beta_preds(alpha=get_alpha(beta=2.5, p=0.1), beta=2.5, p=0.1, n=10000, return_preds=TRUE)
+
+valid_ce_cost <- classify_samples(
+  predicted=df_valid$predicted, 
+  actual=df_valid$actual, 
+  pt=cost_effective_pt, 
+  costs=costs
+)
+
+
+valid_youden_cost <- classify_samples(
+  predicted=df_valid$predicted, 
+  actual=df_valid$actual, 
+  pt=youden_pt, 
+  costs=costs
+)
+
+cat(glue::glue(
+  "mean cost on validation set when using threshold determined by costs:        {scales::dollar_format()(valid_ce_cost)}\n",
+  "mean cost on validation set when using threshold determined by youden index: {scales::dollar_format()(valid_youden_cost)}",
+))
+```
+
+    ## mean cost on validation set when using threshold determined by costs:        $8.73
+    ## mean cost on validation set when using threshold determined by youden index: $8.80
