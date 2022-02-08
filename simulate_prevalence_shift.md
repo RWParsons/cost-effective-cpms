@@ -259,3 +259,85 @@ ce_cost_orig
     ## [1] 67.08889
 
 ### The benefit of re-estimating Pt based on cost-effectiveness will depend on how large the change in costs are, and whether there is a change in the prevalence of the event.
+
+# Assess new approach where the prevalence can be specified:
+
+### take a larger sample and then sample from the classes
+
+### (this doesn’t work)
+
+``` r
+set.seed(123)
+# N = samples
+N <- 10000
+# np = number of fixed effects, excluding the intercept
+np <- 6
+
+# desired sample size 
+n = 1000
+
+# desired prevalence of sample
+r <- 0.1
+
+## fixed effects
+x0 <- rnorm(1)
+x1 <- rnorm(1)
+x2 <- rnorm(1)
+x3 <- rnorm(1)
+x4 <- rnorm(1)
+x5 <- 0
+x6 <- 0
+
+B <- matrix(c(x0, x1, x2, x3, x4, x5, x6), ncol=1)
+
+X <- cbind(rep(1, N), matrix(rnorm(n=np*N), ncol=np))
+
+pi <- X %*% B + rnorm(n=N)
+p <- exp(pi)/(1+exp(pi))
+
+out <- rbinom(n=N, 1, p)
+
+df <- data.frame(p=p, out=out)
+
+df_pos <- df[df$out==1,]
+df_pos <- df_pos[sample(nrow(df_pos),n*r, replace=FALSE), ]
+
+df_neg <- df[df$out==0,]
+df_neg <- df_neg[sample(nrow(df_neg),n*(1-r), replace=FALSE), ]
+
+df_combine <- rbind(df_pos, df_neg)
+
+
+glue::glue("Prevalence in the training set: {mean(out)}")
+```
+
+    ## Prevalence in the training set: 0.4112
+
+``` r
+rocobj <- pROC::roc(as.factor(out), p)
+```
+
+    ## Setting levels: control = 0, case = 1
+
+    ## Warning in roc.default(as.factor(out), p): Deprecated use a matrix as predictor.
+    ## Unexpected results may be produced, please pass a numeric vector.
+
+    ## Setting direction: controls < cases
+
+``` r
+glue::glue("AUC in training set: {round(rocobj$auc, 4)}")
+```
+
+    ## AUC in training set: 0.8506
+
+``` r
+## check to see if predictions are calibrated
+data.frame(prob=df_combine$p, out=df_combine$out) %>% 
+  ggplot(aes(prob, out)) + 
+  geom_smooth() + 
+  geom_abline()
+```
+
+    ## `geom_smooth()` using method = 'gam' and formula 'y ~ s(x, bs = "cs")'
+
+![](simulate_prevalence_shift_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
