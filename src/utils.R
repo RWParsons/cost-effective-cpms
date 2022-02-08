@@ -50,3 +50,19 @@ classify_samples <- function(predicted, actual, pt, costs){
 
   mean(d$cost)
 }
+
+
+get_thresholds <- function(predicted, actual, costs, pt_seq=seq(0.01, 0.99,0.01)){
+  df_pt_costs <- data.frame(pt=pt_seq)
+  df_pt_costs$mean_cost <- map_dbl(
+    df_pt_costs$pt,
+    function(x)classify_samples(predicted=predicted, actual=actual, pt=x, costs=costs)
+  )
+
+  cost_effective_pt <- slice(arrange(df_pt_costs, mean_cost),1)$pt
+
+  rocobj <- pROC::roc(as.factor(actual), predicted)
+  youden_pt <- pROC::coords(rocobj, "best")$threshold
+  res <- list(youden=youden_pt, cost_effective=cost_effective_pt)
+  return(res)
+}
