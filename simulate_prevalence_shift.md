@@ -1,6 +1,6 @@
 simulate_prevalence_shift
 ================
-08 February, 2022
+10 February, 2022
 
 ``` r
 set.seed(123)
@@ -260,16 +260,14 @@ ce_cost_orig
 
 ### The benefit of re-estimating Pt based on cost-effectiveness will depend on how large the change in costs are, and whether there is a change in the prevalence of the event.
 
-# Assess new approach where the prevalence can be specified:
+# Assess new approach where the prevalence is controlled by a change in the underlying distribution of the covariates
 
-### take a larger sample and then sample from the classes
-
-### (this doesn’t work)
+### still needs to move to sampling from mvrnorm rather than assuming there is no covariance in the predictors
 
 ``` r
 set.seed(123)
 # N = samples
-N <- 10000
+N <- 100000
 # np = number of fixed effects, excluding the intercept
 np <- 6
 
@@ -280,64 +278,146 @@ n = 1000
 r <- 0.1
 
 ## fixed effects
-x0 <- rnorm(1)
-x1 <- rnorm(1)
-x2 <- rnorm(1)
-x3 <- rnorm(1)
-x4 <- rnorm(1)
+x0 <- -4.8
+x1 <- -0.5
+x2 <- -0.2
+x3 <- -0.1
+x4 <- -3
 x5 <- 0
 x6 <- 0
 
 B <- matrix(c(x0, x1, x2, x3, x4, x5, x6), ncol=1)
 
-X <- cbind(rep(1, N), matrix(rnorm(n=np*N), ncol=np))
+X <- cbind(rep(1, N), matrix(rnorm(n=np*N, mean=0), ncol=np))
 
-pi <- X %*% B + rnorm(n=N)
+pi <- X %*% B + rnorm(n=N, mean=0, sd=4)
 p <- exp(pi)/(1+exp(pi))
 
 out <- rbinom(n=N, 1, p)
 
-df <- data.frame(p=p, out=out)
-
-df_pos <- df[df$out==1,]
-df_pos <- df_pos[sample(nrow(df_pos),n*r, replace=FALSE), ]
-
-df_neg <- df[df$out==0,]
-df_neg <- df_neg[sample(nrow(df_neg),n*(1-r), replace=FALSE), ]
-
-df_combine <- rbind(df_pos, df_neg)
-
-
-glue::glue("Prevalence in the training set: {mean(out)}")
+expected_prevalence <- mean(p)
+observed_prevalence <- mean(out)
+observed_prevalence
 ```
 
-    ## Prevalence in the training set: 0.4112
+    ## [1] 0.18087
 
 ``` r
-rocobj <- pROC::roc(as.factor(out), p)
+df_train <- as.data.frame.matrix(cbind(out, X))
+names(df_train) <- c("event", paste0("X",0:6))
+df_train$X0 <- NULL
+
+m <- glm(event~., data=df_train, family=binomial(link="logit"))
+
+fitted <- predict(m, type="response")
+
+do_cv <- function(data, nfold=5){
+  data$fold <- sample(rep(1:nfold, length.out=nrow(data)), replace=F)
+  aucs <- c()
+  for(f in 1:nfold){
+    train <- data[data$fold==f,]
+    valid <- data[data$fold!=f,]
+    
+    train$fold <- NULL
+    valid$fold <- NULL
+    
+    model <- glm(event~., data=train, family=binomial(link="logit"))
+    
+    preds <- predict(model, type="response", newdata=valid)
+    aucs <- append(aucs, get_auc(predicted=preds, actual=valid$event))
+  }
+  return(mean(aucs))
+}
+do_cv(df_train)
+```
+
+    ## [1] 0.7835204
+
+``` r
+full_model <- glm(event~., data=df_train, family=binomial(link="logit"))
+```
+
+``` r
+set.seed(42)
+X <- cbind(rep(1, N), matrix(rnorm(n=np*N, mean=0.5, sd=0.9), ncol=np))
+
+pi <- X %*% B + rnorm(n=N, mean=0, sd=4)
+p <- exp(pi)/(1+exp(pi))
+
+out <- rbinom(n=N, 1, p)
+
+expected_prevalence <- mean(p)
+observed_prevalence <- mean(out)
+observed_prevalence
+```
+
+    ## [1] 0.09683
+
+``` r
+df_valid <- as.data.frame.matrix(cbind(out, X))
+names(df_valid) <- c("event", paste0("X",0:6))
+df_valid$X0 <- NULL
+
+valid_preds <- predict(full_model, type="response", newdata=df_valid)
+
+get_auc(predicted=valid_preds, actual=df_valid$event)
+```
+
+    ## [1] 0.7868364
+
+``` r
+data.frame(fitted=valid_preds, actual=df_valid$event) %>%
+  head(2000) %>%
+  ggplot(aes(fitted, actual)) + 
+  geom_smooth(method="loess") + 
+  geom_abline() +
+  labs(title="calibration looks fine in the validation data with a shifted prevalence")
+```
+
+    ## `geom_smooth()` using formula 'y ~ x'
+
+![](simulate_prevalence_shift_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+
+# Basing threshold on maximising NMB is robust to a shift in prevalence while costs and AUC model descrimination remain constant.
+
+### I think that this is a realistic situation where a model is generalised to a new context where patient population is different but the costs of interventions/QALYs may not be.
+
+``` r
+cost_vector <- c("TN"=0, "FN"=100, "TP"=80, "FP"=20)
+cat("Thresholds selected if based on youden and NMB on training data for model")
+```
+
+    ## Thresholds selected if based on youden and NMB on training data for model
+
+``` r
+get_thresholds(predicted=fitted, actual=df_train$event, costs=cost_vector)
 ```
 
     ## Setting levels: control = 0, case = 1
 
-    ## Warning in roc.default(as.factor(out), p): Deprecated use a matrix as predictor.
-    ## Unexpected results may be produced, please pass a numeric vector.
-
     ## Setting direction: controls < cases
 
+    ## $youden
+    ## [1] 0.1805918
+    ## 
+    ## $cost_effective
+    ## [1] 0.5
+
 ``` r
-glue::glue("AUC in training set: {round(rocobj$auc, 4)}")
+cat("Thresholds selected if based on youden and NMB on 'external' validation data")
 ```
 
-    ## AUC in training set: 0.8506
+    ## Thresholds selected if based on youden and NMB on 'external' validation data
 
 ``` r
-## check to see if predictions are calibrated
-data.frame(prob=df_combine$p, out=df_combine$out) %>% 
-  ggplot(aes(prob, out)) + 
-  geom_smooth() + 
-  geom_abline()
+get_thresholds(predicted=valid_preds, actual=df_valid$event, costs=cost_vector)
 ```
 
-    ## `geom_smooth()` using method = 'gam' and formula 'y ~ s(x, bs = "cs")'
+    ## Setting levels: control = 0, case = 1
+    ## Setting direction: controls < cases
 
-![](simulate_prevalence_shift_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+    ## $youden
+    ## [1] 0.09624164
+    ## 
+    ## $cost_effective
+    ## [1] 0.56
