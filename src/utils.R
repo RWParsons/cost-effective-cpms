@@ -12,6 +12,10 @@ get_beta <- function(alpha, p){
   (alpha-alpha*p)/p
 }
 
+get_auc <- function(predicted, actual){
+  AUC::auc(AUC::roc(predicted, as.factor(actual)))
+}
+
 get_beta_preds <- function(alpha=NULL, beta=NULL, p=NULL, n, return_preds=FALSE){
   if(is.null(alpha)){
     alpha <- get_alpha(beta=beta, p=p)
@@ -27,7 +31,7 @@ get_beta_preds <- function(alpha=NULL, beta=NULL, p=NULL, n, return_preds=FALSE)
   if(return_preds){
     return(data.frame(predicted=predicted_probs, actual=predicted_classes))
   }
-  return(AUC::auc(AUC::roc(predicted_probs, as.factor(predicted_classes))))
+  return(get_auc(predicted=predicted_probs, actual=predicted_classes))
 }
 
 # given some predictions corresponding labels, a probability threshold and a vector containing costs, calculate the total cost
