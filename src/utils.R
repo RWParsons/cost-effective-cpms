@@ -16,7 +16,7 @@ get_auc <- function(predicted, actual){
   AUC::auc(AUC::roc(predicted, as.factor(actual)))
 }
 
-get_beta_preds <- function(alpha=NULL, beta=NULL, p=NULL, n, return_preds=FALSE){
+get_beta_preds <- function(alpha=NULL, beta=NULL, p=NULL, n, get_what=c("preds", "auc", "params")){
   if(is.null(alpha)){
     alpha <- get_alpha(beta=beta, p=p)
   }
@@ -28,10 +28,25 @@ get_beta_preds <- function(alpha=NULL, beta=NULL, p=NULL, n, return_preds=FALSE)
   f <- function(x) sample(c(0, 1), 1, prob=c(1-x, x))
   predicted_classes <- purrr::map_dbl(predicted_probs, f)
 
-  if(return_preds){
-    return(data.frame(predicted=predicted_probs, actual=predicted_classes))
+  res <- list()
+  if("params" %in% get_what){
+    res <- list(alpha=alpha, beta=beta)
   }
-  return(get_auc(predicted=predicted_probs, actual=predicted_classes))
+  if("preds" %in% get_what){
+    if(length(res)==0){
+      res <- list(preds=data.frame(predicted=predicted_probs, actual=predicted_classes))
+    }else{
+      res <- append(res, list(preds=data.frame(predicted=predicted_probs, actual=predicted_classes)))
+    }
+  }
+  if("auc" %in% get_what){
+    if(length(res)==0){
+      res <- list(auc=get_auc(predicted=predicted_probs, actual=predicted_classes))
+    }else{
+      res <- append(res, list(auc=get_auc(predicted=predicted_probs, actual=predicted_classes)))
+    }
+  }
+  res
 }
 
 # given some predictions corresponding labels, a probability threshold and a vector containing costs, calculate the total cost
@@ -65,7 +80,7 @@ get_thresholds <- function(predicted, actual, costs, pt_seq=seq(0.01, 0.99,0.01)
 
   cost_effective_pt <- slice(arrange(df_pt_costs, mean_cost),1)$pt
 
-  rocobj <- pROC::roc(as.factor(actual), predicted)
+  rocobj <- pROC::roc(as.factor(actual), predicted, direction="<", quiet=TRUE)
   youden_pt <- pROC::coords(rocobj, "best")$threshold
   res <- list(youden=youden_pt, cost_effective=cost_effective_pt)
   return(res)
