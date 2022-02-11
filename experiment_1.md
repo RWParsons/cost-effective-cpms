@@ -57,13 +57,13 @@ distribution <- get_beta_preds(beta=35, p=0.03, n=100000, get_what=c("auc", "par
 glue::glue("AUC: {round(distribution$auc, 4)}")
 ```
 
-    ## AUC: 0.746
+    ## AUC: 0.7524
 
 ``` r
 glue::glue("Prevalence: {round(mean(distribution$preds$actual), 4)}")
 ```
 
-    ## Prevalence: 0.0311
+    ## Prevalence: 0.0307
 
 ``` r
 glue::glue("Parameters: alpha={round(distribution$alpha, 4)}; beta={distribution$beta}")
@@ -74,12 +74,55 @@ glue::glue("Parameters: alpha={round(distribution$alpha, 4)}; beta={distribution
 ### Run simulation
 
 ``` r
+get_confusion <- function(d, pt=0.2){
+  TN <- sum(d$predicted < pt & d$actual==0)
+  FN <- sum(d$predicted < pt & d$actual==1)
+  TP <- sum(d$predicted > pt & d$actual==1)
+  FP <- sum(d$predicted > pt & d$actual==0)
+  
+  Se <- TP/(TP+FN)
+  Sp <- TN/(FP+TN)
+  
+  list(TN=TN, FN=FN, TP=TP, FP=FP, Se=Se, Sp=Sp)
+}
+
+
+get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs){
+  rocobj <- pROC::roc(as.factor(actual), predicted, direction="<", quiet=TRUE)
+  auc <- pROC::auc(rocobj)
+  pt_er <- pROC::coords(rocobj, "best", best.method="closest.topleft")$threshold
+  pt_youden <- pROC::coords(rocobj, "best", best.method="youden")$threshold
+  
+  f <- function(pt){
+    # new threshold selection methods are from here: https://www.hindawi.com/journals/cmmm/2017/3762651/
+    cm <- get_confusion(d=data.frame(predicted=predicted, actual=actual), pt=pt)
+    data.frame(
+        pt=pt, 
+        cost_effective=cm$TN*costs["TN"] + cm$TP*costs["TP"] + cm$FN*costs["FN"] + cm$FP*costs["FP"],
+        cz=cm$Se*cm$Sp,
+        iu=abs(cm$Se - auc) + abs(cm$Sp - auc)
+      )
+  }
+  
+  screen_df <- map_dfr(pt_seq, f)
+  
+  pt_cost_effective <- mean(screen_df$pt[screen_df$cost_effective==min(screen_df$cost_effective)])
+  pt_cz <- mean(screen_df$pt[screen_df$cz==max(screen_df$cz)])
+  pt_iu <- mean(screen_df$pt[screen_df$iu==min(screen_df$iu)])
+  
+  list(pt_er=pt_er, pt_youden=pt_youden, pt_cost_effective=pt_cost_effective, pt_cz=pt_cz, pt_iu=pt_iu)
+}
+```
+
+``` r
 sample_sizes <- c(100, 500, 1000)
 n_sims <- 500
 n_valid <- 1000
 
-df_result <- data.frame(train_sample_size=c(), n_sim=c(), youden_cost=c(), cost_effective_cost=c())
-
+df_result <- data.frame(
+  train_sample_size=c(), n_sim=c(), youden_cost=c(), cost_effective_cost=c(),
+  cz_cost=c(), iu_cost=c(), er_cost=c()
+)
 
 for(n in sample_sizes){
   i <- 0
@@ -114,39 +157,61 @@ for(n in sample_sizes){
     youden_mean_cost <- classify_samples(
       predicted=valid_sample$predicted,
       actual=valid_sample$actual,
-      pt=thresholds$youden,
+      pt=thresholds$pt_youden,
+      costs=cost_vector
+    )
+    
+    cost_threshold <- function(pt){
+      classify_samples(
+        predicted=valid_sample$predicted,
+        actual=valid_sample$actual,
+        pt=pt,
+        costs=cost_vector
+      )
+    }
+    
+    
+    cost_effective_mean_cost <- classify_samples(
+      predicted=valid_sample$predicted,
+      actual=valid_sample$actual,
+      pt=thresholds$pt_cost_effective,
       costs=cost_vector
     )
     
     cost_effective_mean_cost <- classify_samples(
       predicted=valid_sample$predicted,
       actual=valid_sample$actual,
-      pt=thresholds$cost_effective,
+      pt=thresholds$pt_cost_effective,
       costs=cost_vector
     )
+    
     df_result <- rbind(
       df_result, 
       data.frame(
         train_sample_size=c(n), 
         n_sim=c(i), 
-        youden_cost=c(youden_mean_cost), 
-        cost_effective_cost=c(cost_effective_mean_cost)
+        youden_cost=cost_threshold(thresholds$pt_youden), 
+        cost_effective_cost=cost_threshold(thresholds$pt_cost_effective),
+        cz_cost=c(cost_threshold(thresholds$pt_cz)), 
+        er_cost=c(cost_threshold(thresholds$pt_er)), 
+        iu_cost=c(cost_threshold(thresholds$pt_iu))
       )
     )
   }
 }
 
-
 df_result %>%
   select(-n_sim) %>%
   pivot_longer(!train_sample_size, names_to="method", values_to="cost") %>%
+  mutate(method=str_remove(method, "_cost")) %>%
   ggplot(aes(method, cost)) +
   geom_boxplot() +
   geom_jitter(alpha=0.1, width=0.1) +
   facet_wrap(~train_sample_size) +
   theme_bw() +
   labs(y="Mean cost per patient") +
-  scale_y_continuous(labels=scales::dollar_format())
+  scale_y_continuous(labels=scales::dollar_format()) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+![](experiment_1_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
