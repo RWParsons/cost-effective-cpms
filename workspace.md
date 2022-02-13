@@ -1,42 +1,8 @@
 workspace
 ================
-11 February, 2022
+14 February, 2022
 
 ``` r
-library(tidyverse)
-```
-
-    ## -- Attaching packages --------------------------------------- tidyverse 1.3.1 --
-
-    ## v ggplot2 3.3.3     v purrr   0.3.4
-    ## v tibble  3.1.2     v dplyr   1.0.6
-    ## v tidyr   1.1.3     v stringr 1.4.0
-    ## v readr   1.4.0     v forcats 0.5.1
-
-    ## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
-    ## x dplyr::filter() masks stats::filter()
-    ## x dplyr::lag()    masks stats::lag()
-
-``` r
-get_sample <- function(auc, n_samples, prevalence, scale=T){
-  # https://stats.stackexchange.com/questions/422926/generate-synthetic-data-given-auc
-  t <- sqrt(log(1/(1-auc)**2))
-  z <- t-((2.515517 + 0.802853*t + 0.0103328*t**2) / 
-            (1 + 1.432788*t + 0.189269*t**2 + 0.001308*t**3))
-  d <- z*sqrt(2)
-  
-  n_neg <- round(n_samples*(1-prevalence))
-  n_pos <- round(n_samples*prevalence)
-  
-  x <- c(rnorm(n_neg, mean=0), rnorm(n_pos, mean=d))
-  y <- c(rep(0, n_neg), rep(1, n_pos))
-  
-  if(scale){
-    x <- (x-min(x)) / (max(x)-min(x))
-  }
-  return(data.frame(predicted=x, actual=y))
-}
-
 df_preds <- get_sample(auc=0.8, n_samples=2000, prevalence=0.1) %>%
   mutate(predicted_interval=cut(predicted, seq(0,1,0.1), labels=FALSE)/10-0.05)
 
@@ -64,8 +30,6 @@ df_preds %>%
 ![](workspace_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->
 
 ``` r
-source("src/utils.R")
-
 # these give the same prevalence but different AUC
 # df_beta_preds <- get_beta_preds(alpha=1, beta=2, n=100000, get_what="preds")$preds
 df_beta_preds <- get_beta_preds(alpha=1.5, beta=3, n=100000, get_what="preds")$preds
