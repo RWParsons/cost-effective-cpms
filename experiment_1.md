@@ -1,10 +1,10 @@
 Experiment 1
 ================
-11 February, 2022
+14 February, 2022
 
 Question: What are the differences in NMB between models where the
-Probability threshold was based on the Youden index versus costs-based
-selection. (Hospital falls as a use case.)
+Probability threshold was based on the currently available methods
+versus costs-based selection. (Hospital falls as a use case.)
 
 1.  Define costs of a TP, TN, FP, FN of falls classification (option to
     move this into the loop where costs are sampled from a distributions
@@ -14,22 +14,26 @@ selection. (Hospital falls as a use case.)
     -   TP have cost of intervention + cost of fall\*(1-effectiveness of
         intervention on rate of falls)
     -   TN are cost $0
-2.  Determine beta distribution parameters to represent predicted
-    probabilities with an expected value equal to the prevalence
-    (\~1-3%?) and approximately similar AUC to currently available
-    models (\~0.75?) when evaluating probabilities to outcomes using
-    binomial distribution.
-3.  For sample sizes (N) in \[100, 500, 1000, 5000, 1000\]: (repeat 10k
-    times at each sample size)
-    -   Sample N samples from beta distribution under selected
-        parameters (with or without some error on the parameters)
-    -   Transform probabilities to events using binomial distribution
-    -   Select probability thresholds based on Youden index vs costs
-    -   Evaluate the two thresholds on sample taken from same beta
-        distribution but with n=10000. Estimate mean cost per patient on
-        this validation set.
+2.  Select appropriate AUC (\~0.75?) and prevalence (\~3% ) for
+    comparable clinical prediction model for falls.
+3.  For sample sizes (N) in \[100, 500, 1000\]: (repeat 500 times at
+    each sample size)
+    -   Get training data by sampling observed predictor values and
+        outcome by transforming AUC into Cohens’ D and sampling from two
+        normal distributions, the first (negative events) with mean=0
+        and the second (positive events) with mean=Cohens’D. (Both with
+        sd=1.)
+    -   Fit a logistic regression model using this sampled data.
+    -   Fit predicted probabilities to the training data and use these
+        to obtain probability thresholds using each method.
+    -   Get validation data using the same approach but with n=1000.
+    -   Use the previously fit model to estimate probabilities for
+        validation data.
+    -   Evaluate the thresholds selected using the training data on the
+        validation data, in terms of mean cost per patient.
 4.  Measure differences in NMB on validation sample dependent on use of
-    Youden index versus cost-based approach to determine threshold.
+    currently available methods and cost-based approach to determine
+    threshold.
 5.  Observe whether this relationship is dependent on the sample size
     taken
 
@@ -49,29 +53,7 @@ cost_vector <- c(
 )
 ```
 
-### Determine appropriate beta distribution for predicted probabilities (prevalence of \~3% and AUC of \~0.75)
-
-``` r
-distribution <- get_beta_preds(beta=35, p=0.03, n=100000, get_what=c("auc", "params", "preds"))
-
-glue::glue("AUC: {round(distribution$auc, 4)}")
-```
-
-    ## AUC: 0.7524
-
-``` r
-glue::glue("Prevalence: {round(mean(distribution$preds$actual), 4)}")
-```
-
-    ## Prevalence: 0.0307
-
-``` r
-glue::glue("Parameters: alpha={round(distribution$alpha, 4)}; beta={distribution$beta}")
-```
-
-    ## Parameters: alpha=1.0825; beta=35
-
-### Run simulation
+### Add helper functions for determining classifying predictions and estimating probability thresholds.
 
 ``` r
 get_confusion <- function(d, pt=0.2){
@@ -114,10 +96,14 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
 }
 ```
 
+### Run simulation
+
 ``` r
 sample_sizes <- c(100, 500, 1000)
 n_sims <- 500
 n_valid <- 1000
+sim_auc <- 0.75
+event_rate <- 0.1
 
 df_result <- data.frame(
   train_sample_size=c(), n_sim=c(), youden_cost=c(), cost_effective_cost=c(),
@@ -125,28 +111,13 @@ df_result <- data.frame(
 )
 
 for(n in sample_sizes){
-  i <- 0
-  while(i < n_sims){
-    train_sample <- get_beta_preds(
-      alpha=distribution$alpha, 
-      beta=distribution$beta, 
-      n=n, 
-      get_what="preds"
-    )$preds
-    
-    valid_sample <- get_beta_preds(
-      alpha=distribution$alpha, 
-      beta=distribution$beta, 
-      n=n_valid,
-      get_what="preds"
-    )$preds
-    
-    if(length(unique(valid_sample$actual))!=2 | length(unique(train_sample$actual))!=2){
-      # If there are no cases in either the training or validation sample, then redo sampling.
-      next
-    }
-    
-    i <- i+1
+  for(i in 1:n_sims){
+    train_sample <- get_sample(auc=sim_auc, n_samples=n, prevalence=event_rate)
+    model <- glm(actual~predicted, data=train_sample, family=binomial())
+    train_sample$predicted <- predict(model, type="response")
+
+    valid_sample <- get_sample(auc=sim_auc, n_samples=n_valid, prevalence=event_rate)
+    valid_sample$predicted <- predict(model, type="response", newdata=valid_sample)
     
     thresholds <- get_thresholds(
       predicted=train_sample$predicted, 
@@ -170,7 +141,6 @@ for(n in sample_sizes){
       )
     }
     
-    
     cost_effective_mean_cost <- classify_samples(
       predicted=valid_sample$predicted,
       actual=valid_sample$actual,
@@ -188,13 +158,13 @@ for(n in sample_sizes){
     df_result <- rbind(
       df_result, 
       data.frame(
-        train_sample_size=c(n), 
-        n_sim=c(i), 
+        train_sample_size=n, 
+        n_sim=i, 
         youden_cost=cost_threshold(thresholds$pt_youden), 
         cost_effective_cost=cost_threshold(thresholds$pt_cost_effective),
-        cz_cost=c(cost_threshold(thresholds$pt_cz)), 
-        er_cost=c(cost_threshold(thresholds$pt_er)), 
-        iu_cost=c(cost_threshold(thresholds$pt_iu))
+        cz_cost=cost_threshold(thresholds$pt_cz), 
+        er_cost=cost_threshold(thresholds$pt_er), 
+        iu_cost=cost_threshold(thresholds$pt_iu)
       )
     )
   }
@@ -214,4 +184,4 @@ df_result %>%
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+![](experiment_1_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
