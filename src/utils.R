@@ -6,8 +6,8 @@ get_sample <- function(auc, n_samples, prevalence, scale_to_d=F){
             (1 + 1.432788*t + 0.189269*t**2 + 0.001308*t**3))
   d <- z*sqrt(2)
 
-  n_neg <- round(n_samples*(1-prevalence))
-  n_pos <- round(n_samples*prevalence)
+  n_pos <- sum(sample(c(0,1), n_samples, replace=TRUE, prob=c(1-prevalence, prevalence)))
+  n_neg <- n_samples - n_pos
 
   x <- c(rnorm(n_neg, mean=0), rnorm(n_pos, mean=d))
   y <- c(rep(0, n_neg), rep(1, n_pos))
@@ -90,18 +90,28 @@ classify_samples <- function(predicted, actual, pt, costs){
   mean(d$cost)
 }
 
-
-get_thresholds <- function(predicted, actual, costs, pt_seq=seq(0.01, 0.99,0.01)){
-  df_pt_costs <- data.frame(pt=pt_seq)
-  df_pt_costs$mean_cost <- map_dbl(
-    df_pt_costs$pt,
-    function(x)classify_samples(predicted=predicted, actual=actual, pt=x, costs=costs)
-  )
-
-  cost_effective_pt <- slice(arrange(df_pt_costs, mean_cost),1)$pt
-
+get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs){
   rocobj <- pROC::roc(as.factor(actual), predicted, direction="<", quiet=TRUE)
-  youden_pt <- pROC::coords(rocobj, "best")$threshold
-  res <- list(youden=youden_pt, cost_effective=cost_effective_pt)
-  return(res)
+  auc <- pROC::auc(rocobj)
+  pt_er <- pROC::coords(rocobj, "best", best.method="closest.topleft")$threshold
+  pt_youden <- pROC::coords(rocobj, "best", best.method="youden")$threshold
+
+  f <- function(pt){
+    # new threshold selection methods are from here: https://www.hindawi.com/journals/cmmm/2017/3762651/
+    cm <- get_confusion(d=data.frame(predicted=predicted, actual=actual), pt=pt)
+    data.frame(
+      pt=pt,
+      cost_effective=cm$TN*costs["TN"] + cm$TP*costs["TP"] + cm$FN*costs["FN"] + cm$FP*costs["FP"],
+      cz=cm$Se*cm$Sp,
+      iu=abs(cm$Se - auc) + abs(cm$Sp - auc)
+    )
+  }
+
+  screen_df <- map_dfr(pt_seq, f)
+
+  pt_cost_effective <- mean(screen_df$pt[screen_df$cost_effective==min(screen_df$cost_effective)])
+  pt_cz <- mean(screen_df$pt[screen_df$cz==max(screen_df$cz)])
+  pt_iu <- mean(screen_df$pt[screen_df$iu==min(screen_df$iu)])
+
+  list(pt_er=pt_er, pt_youden=pt_youden, pt_cost_effective=pt_cost_effective, pt_cz=pt_cz, pt_iu=pt_iu)
 }
