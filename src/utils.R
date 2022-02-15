@@ -115,3 +115,15 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
 
   list(pt_er=pt_er, pt_youden=pt_youden, pt_cost_effective=pt_cost_effective, pt_cz=pt_cz, pt_iu=pt_iu)
 }
+
+get_confusion <- function(d, pt=0.2){
+  TN <- sum(d$predicted < pt & d$actual==0)
+  FN <- sum(d$predicted < pt & d$actual==1)
+  TP <- sum(d$predicted > pt & d$actual==1)
+  FP <- sum(d$predicted > pt & d$actual==0)
+
+  Se <- TP/(TP+FN)
+  Sp <- TN/(FP+TN)
+
+  list(TN=TN, FN=FN, TP=TP, FP=FP, Se=Se, Sp=Sp)
+}

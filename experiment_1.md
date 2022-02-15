@@ -79,147 +79,138 @@ get_costs()
     ##        TN        FN        TP        FP 
     ##    0.0000 3504.4305 3173.8869  259.5966
 
-### Add helper functions for determining classifying predictions and estimating probability thresholds.
-
-``` r
-get_confusion <- function(d, pt=0.2){
-  TN <- sum(d$predicted < pt & d$actual==0)
-  FN <- sum(d$predicted < pt & d$actual==1)
-  TP <- sum(d$predicted > pt & d$actual==1)
-  FP <- sum(d$predicted > pt & d$actual==0)
-  
-  Se <- TP/(TP+FN)
-  Sp <- TN/(FP+TN)
-  
-  list(TN=TN, FN=FN, TP=TP, FP=FP, Se=Se, Sp=Sp)
-}
-
-
-get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs){
-  rocobj <- pROC::roc(as.factor(actual), predicted, direction="<", quiet=TRUE)
-  auc <- pROC::auc(rocobj)
-  pt_er <- pROC::coords(rocobj, "best", best.method="closest.topleft")$threshold
-  pt_youden <- pROC::coords(rocobj, "best", best.method="youden")$threshold
-  
-  f <- function(pt){
-    # new threshold selection methods are from here: https://www.hindawi.com/journals/cmmm/2017/3762651/
-    cm <- get_confusion(d=data.frame(predicted=predicted, actual=actual), pt=pt)
-    data.frame(
-        pt=pt, 
-        cost_effective=cm$TN*costs["TN"] + cm$TP*costs["TP"] + cm$FN*costs["FN"] + cm$FP*costs["FP"],
-        cz=cm$Se*cm$Sp,
-        iu=abs(cm$Se - auc) + abs(cm$Sp - auc)
-      )
-  }
-  
-  screen_df <- map_dfr(pt_seq, f)
-  
-  pt_cost_effective <- mean(screen_df$pt[screen_df$cost_effective==min(screen_df$cost_effective)])
-  pt_cz <- mean(screen_df$pt[screen_df$cz==max(screen_df$cz)])
-  pt_iu <- mean(screen_df$pt[screen_df$iu==min(screen_df$iu)])
-  
-  list(pt_er=pt_er, pt_youden=pt_youden, pt_cost_effective=pt_cost_effective, pt_cz=pt_cz, pt_iu=pt_iu)
-}
-```
-
 ### Run simulation
 
 ``` r
-# source("src/utils.R")
-sample_sizes <- c(100, 500, 1000)
-n_sims <- 100
-n_valid <- 1000
-sim_auc <- 0.65
-event_rate <- 0.02
-
-df_result <- data.frame(
-  train_sample_size=c(), n_sim=c(), youden_cost=c(), cost_effective_cost=c(),
-  cz_cost=c(), iu_cost=c(), er_cost=c()
-)
-
-
-for(n in sample_sizes){
-  i <- 0
-  while(i < n_sims){
-    train_sample <- get_sample(auc=sim_auc, n_samples=n, prevalence=event_rate)
-    valid_sample <- get_sample(auc=sim_auc, n_samples=n_valid, prevalence=event_rate)
-    if(length(unique(train_sample$actual))!=2 | length(unique(valid_sample$actual))!=2){
-      next
-    }
-    i <- i + 1
-    model <- glm(actual~predicted, data=train_sample, family=binomial())
-    train_sample$predicted <- predict(model, type="response")
-
-    
-    valid_sample$predicted <- predict(model, type="response", newdata=valid_sample)
-    
-    cost_vector <- get_costs()
-    
-    thresholds <- get_thresholds(
-      predicted=train_sample$predicted, 
-      actual=train_sample$actual,
-      costs=cost_vector
-    )
-    
-    youden_mean_cost <- classify_samples(
-      predicted=valid_sample$predicted,
-      actual=valid_sample$actual,
-      pt=thresholds$pt_youden,
-      costs=cost_vector
-    )
-    
-    cost_vector <- get_costs()
-    
-    cost_threshold <- function(pt){
-      classify_samples(
-        predicted=valid_sample$predicted,
-        actual=valid_sample$actual,
-        pt=pt,
+do_simulation <- function(sample_sizes, n_sims, n_valid, sim_auc, event_rate, fx_costs, get_what=c("data", "plot")){
+  df_result <- data.frame(
+    train_sample_size=c(), n_sim=c(), youden_cost=c(), cost_effective_cost=c(),
+    cz_cost=c(), iu_cost=c(), er_cost=c()
+  )
+  
+  for(n in sample_sizes){
+    i <- 0
+    while(i < n_sims){
+      train_sample <- get_sample(auc=sim_auc, n_samples=n, prevalence=event_rate)
+      valid_sample <- get_sample(auc=sim_auc, n_samples=n_valid, prevalence=event_rate)
+      if(length(unique(train_sample$actual))!=2 | length(unique(valid_sample$actual))!=2){
+        next
+      }
+      i <- i + 1
+      model <- glm(actual~predicted, data=train_sample, family=binomial())
+      train_sample$predicted <- predict(model, type="response")
+  
+      
+      valid_sample$predicted <- predict(model, type="response", newdata=valid_sample)
+      
+      cost_vector <- fx_costs()
+      
+      thresholds <- get_thresholds(
+        predicted=train_sample$predicted, 
+        actual=train_sample$actual,
         costs=cost_vector
       )
-    }
-    
-    cost_effective_mean_cost <- classify_samples(
-      predicted=valid_sample$predicted,
-      actual=valid_sample$actual,
-      pt=thresholds$pt_cost_effective,
-      costs=cost_vector
-    )
-    
-    cost_effective_mean_cost <- classify_samples(
-      predicted=valid_sample$predicted,
-      actual=valid_sample$actual,
-      pt=thresholds$pt_cost_effective,
-      costs=cost_vector
-    )
-    
-    df_result <- rbind(
-      df_result, 
-      data.frame(
-        train_sample_size=n, 
-        n_sim=i, 
-        youden_cost=cost_threshold(thresholds$pt_youden), 
-        cost_effective_cost=cost_threshold(thresholds$pt_cost_effective),
-        cz_cost=cost_threshold(thresholds$pt_cz), 
-        er_cost=cost_threshold(thresholds$pt_er), 
-        iu_cost=cost_threshold(thresholds$pt_iu)
+      
+      youden_mean_cost <- classify_samples(
+        predicted=valid_sample$predicted,
+        actual=valid_sample$actual,
+        pt=thresholds$pt_youden,
+        costs=cost_vector
       )
-    )
+      
+      cost_vector <- get_costs()
+      
+      cost_threshold <- function(pt){
+        classify_samples(
+          predicted=valid_sample$predicted,
+          actual=valid_sample$actual,
+          pt=pt,
+          costs=cost_vector
+        )
+      }
+      
+      cost_effective_mean_cost <- classify_samples(
+        predicted=valid_sample$predicted,
+        actual=valid_sample$actual,
+        pt=thresholds$pt_cost_effective,
+        costs=cost_vector
+      )
+      
+      cost_effective_mean_cost <- classify_samples(
+        predicted=valid_sample$predicted,
+        actual=valid_sample$actual,
+        pt=thresholds$pt_cost_effective,
+        costs=cost_vector
+      )
+      
+      df_result <- rbind(
+        df_result, 
+        data.frame(
+          train_sample_size=n, 
+          n_sim=i, 
+          youden_cost=cost_threshold(thresholds$pt_youden), 
+          cost_effective_cost=cost_threshold(thresholds$pt_cost_effective),
+          cz_cost=cost_threshold(thresholds$pt_cz), 
+          er_cost=cost_threshold(thresholds$pt_er), 
+          iu_cost=cost_threshold(thresholds$pt_iu)
+        )
+      )
+    }
+  }
+  
+  p <- 
+    df_result %>%
+    select(-n_sim) %>%
+    pivot_longer(!train_sample_size, names_to="method", values_to="cost") %>%
+    mutate(method=str_remove(method, "_cost")) %>%
+    ggplot(aes(method, cost)) +
+    geom_boxplot() +
+    geom_jitter(alpha=0.1, width=0.1) +
+    theme_bw() +
+    labs(
+      y="Mean cost per patient",
+      x="Probability threshold selection method"
+    ) +
+    scale_y_continuous(labels=scales::dollar_format()) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  
+  if(length(sample_sizes)>1){
+    p <- p + facet_wrap(~train_sample_size)
+  }
+  
+  if(length(get_what)==1){
+    if(get_what=="data"){return(df_result)}
+    if(get_what=="plot"){return(p)}
+  }else{
+    return(list(data=df_result, plot=p))
   }
 }
+# do_simulation(sample_sizes=500, n_sims=100, n_valid=1000, sim_auc=0.65, event_rate=0.03, fx_costs=get_costs, get_what=c("data", "plot"))
 
-df_result %>%
-  select(-n_sim) %>%
-  pivot_longer(!train_sample_size, names_to="method", values_to="cost") %>%
-  mutate(method=str_remove(method, "_cost")) %>%
-  ggplot(aes(method, cost)) +
-  geom_boxplot() +
-  geom_jitter(alpha=0.1, width=0.1) +
-  facet_wrap(~train_sample_size) +
-  theme_bw() +
-  labs(y="Mean cost per patient") +
-  scale_y_continuous(labels=scales::dollar_format()) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+p_list <- lapply(c(0.03, 0.1, 0.5, 0.9, 0.97), function(x)do_simulation(sample_sizes=500, n_sims=100, n_valid=1000, sim_auc=0.65, event_rate=x, fx_costs=get_costs, get_what="plot"))
+p_list
 ```
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+    ## [[1]]
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
+
+    ## 
+    ## [[2]]
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-2-2.png)<!-- -->
+
+    ## 
+    ## [[3]]
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-2-3.png)<!-- -->
+
+    ## 
+    ## [[4]]
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-2-4.png)<!-- -->
+
+    ## 
+    ## [[5]]
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-2-5.png)<!-- -->
