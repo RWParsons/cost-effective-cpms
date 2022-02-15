@@ -118,7 +118,7 @@ do_simulation <- function(sample_sizes, n_sims, n_valid, sim_auc, event_rate, fx
         costs=cost_vector
       )
       
-      cost_vector <- get_costs()
+      cost_vector <- fx_costs()
       
       cost_threshold <- function(pt){
         classify_samples(
@@ -193,9 +193,15 @@ do_simulation <- function(sample_sizes, n_sims, n_valid, sim_auc, event_rate, fx
 # p_list
 ```
 
-### Probability threshold selection method becomes increasingly important as the AUC of the model and the event rate reduces.
+## search through a grid of combinations of AUC and event rates to see how this influences the differences between probability threshold methods. The same costs were used in all simulations (distributions at top of document) and are resampled separately for training and validation.
 
-### I think that this is because, for models with very high discrimination, they’re able to correctly classify a larger proportion of samples, and there are fewer which are classified differently based on selection method. The difference is greater for smaller event rates because a false negative is the most costly classification, and only the cost-based method is “aware” of this. This is also why, when the event rate is very high, there is not much of a difference between methods (cost-based method is focused on correctly classifying the majority class but so are the other methods).
+#### In the plot below, the columns, from left to right, have increasing AUC. The rows, from top to bottom, have increasing event rates.
+
+### My hot takes:
+
+#### Probability threshold selection method becomes increasingly important as the AUC of the model and the event rate reduces.
+
+#### I think that this is because, for models with very high discrimination, they’re able to correctly classify a larger proportion of samples, and there are fewer which are classified differently based on selection method. The difference is greater for smaller event rates because a false negative is the most costly classification, and only the cost-based method is “aware” of this. This is also why, when the event rate is very high, there is not much of a difference between methods (cost-based method is focused on correctly classifying the majority class but so are the other methods).
 
 ``` r
 g <- expand.grid(
