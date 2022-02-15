@@ -159,8 +159,10 @@ do_simulation <- function(sample_sizes, n_sims, n_valid, sim_auc, event_rate, fx
     geom_jitter(alpha=0.1, width=0.1) +
     theme_bw() +
     labs(
-      y="Mean cost per patient",
-      x="Probability threshold selection method"
+      # y="Mean cost per patient",
+      # x="Probability threshold selection method",
+      y="", x="",
+      subtitle=glue::glue("auc: {sim_auc}; event_rate: {event_rate}")
     ) +
     scale_y_continuous(labels=scales::dollar_format()) +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -178,8 +180,28 @@ do_simulation <- function(sample_sizes, n_sims, n_valid, sim_auc, event_rate, fx
 }
 # do_simulation(sample_sizes=500, n_sims=100, n_valid=1000, sim_auc=0.65, event_rate=0.03, fx_costs=get_costs, get_what=c("data", "plot"))
 
-p_list <- lapply(c(0.03, 0.1, 0.5, 0.9, 0.97), function(x)do_simulation(sample_sizes=500, n_sims=100, n_valid=1000, sim_auc=0.65, event_rate=x, fx_costs=get_costs, get_what="plot"))
-p_list
+# p_list <- lapply(c(0.03, 0.1, 0.5, 0.9, 0.97), function(x)do_simulation(sample_sizes=500, n_sims=100, n_valid=1000, sim_auc=0.65, event_rate=x, fx_costs=get_costs, get_what="plot"))
+# p_list
+```
 
 
+### Probability threshold selection method becomes increasingly important as the AUC of the model and the event rate reduces.
+### I think that this is because, for models with very high discrimination, they're able to correctly classify a larger proportion of samples, and there are fewer which are classified differently based on selection method. The difference is greater for smaller event rates because a false negative is the most costly classification, and only the cost-based method is "aware" of this. This is also why, when the event rate is very high, there is not much of a difference between methods (cost-based method is focused on correctly classifying the majority class but so are the other methods).
+```{r, fig.height=24, fig.width=12}
+
+g <- expand.grid(
+  sim_auc=c(0.65, 0.75, 0.85, 0.95),
+  event_rate=c(0.01, 0.03, 0.1, 0.3, 0.7, 0.9, 0.99)
+)
+
+out <- map2(
+  .x=g$sim_auc, .y=g$event_rate, 
+  function(.x, .y) 
+    do_simulation(
+      sample_sizes=500, n_sims=100, n_valid=1000, 
+      sim_auc=.x, event_rate=.y, fx_costs=get_costs, get_what="plot"
+    )
+)
+
+cowplot::plot_grid(plotlist=out, ncol=length(unique(g$sim_auc)))
 ```
