@@ -1,6 +1,6 @@
 Experiment 1
 ================
-14 February, 2022
+15 February, 2022
 
 Question: What are the differences in NMB between models where the
 Probability threshold was based on the currently available methods
@@ -51,7 +51,33 @@ cost_vector <- c(
   "TP"=QALYs_event*(1-treatment_effect)*wtp, 
   "FP"=treatment_cost
 )
+
+f_plot <- function(beta, rate){
+  alpha <- get_alpha(beta, rate)
+  print(alpha)
+  data.frame(sample=rbeta(n=10000, alpha, beta)) %>%
+    ggplot(aes(sample)) + geom_density()
+}
+# f_plot(1000, 0.1)
+
+get_costs <- function(){
+  treatment_effect <- rbeta(1, 111.111, 1000)
+  QALYs_event <- rbeta(1, 10/3, 30)
+  treatment_cost <- rgamma(1, 250)
+  wtp <- 28000
+  
+  c(
+    "TN"=0, 
+    "FN"=QALYs_event*wtp, 
+    "TP"=QALYs_event*(1-treatment_effect)*wtp, 
+    "FP"=treatment_cost
+  )
+}
+get_costs()
 ```
+
+    ##        TN        FN        TP        FP 
+    ##    0.0000 3504.4305 3173.8869  259.5966
 
 ### Add helper functions for determining classifying predictions and estimating probability thresholds.
 
@@ -99,25 +125,35 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
 ### Run simulation
 
 ``` r
+# source("src/utils.R")
 sample_sizes <- c(100, 500, 1000)
-n_sims <- 500
+n_sims <- 100
 n_valid <- 1000
-sim_auc <- 0.75
-event_rate <- 0.1
+sim_auc <- 0.65
+event_rate <- 0.02
 
 df_result <- data.frame(
   train_sample_size=c(), n_sim=c(), youden_cost=c(), cost_effective_cost=c(),
   cz_cost=c(), iu_cost=c(), er_cost=c()
 )
 
+
 for(n in sample_sizes){
-  for(i in 1:n_sims){
+  i <- 0
+  while(i < n_sims){
     train_sample <- get_sample(auc=sim_auc, n_samples=n, prevalence=event_rate)
+    valid_sample <- get_sample(auc=sim_auc, n_samples=n_valid, prevalence=event_rate)
+    if(length(unique(train_sample$actual))!=2 | length(unique(valid_sample$actual))!=2){
+      next
+    }
+    i <- i + 1
     model <- glm(actual~predicted, data=train_sample, family=binomial())
     train_sample$predicted <- predict(model, type="response")
 
-    valid_sample <- get_sample(auc=sim_auc, n_samples=n_valid, prevalence=event_rate)
+    
     valid_sample$predicted <- predict(model, type="response", newdata=valid_sample)
+    
+    cost_vector <- get_costs()
     
     thresholds <- get_thresholds(
       predicted=train_sample$predicted, 
@@ -131,6 +167,8 @@ for(n in sample_sizes){
       pt=thresholds$pt_youden,
       costs=cost_vector
     )
+    
+    cost_vector <- get_costs()
     
     cost_threshold <- function(pt){
       classify_samples(
