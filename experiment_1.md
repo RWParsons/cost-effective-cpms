@@ -1,6 +1,6 @@
 Experiment 1
 ================
-15 February, 2022
+16 February, 2022
 
 Question: What are the differences in NMB between models where the
 Probability threshold was based on the currently available methods
@@ -9,33 +9,34 @@ versus costs-based selection. (Hospital falls as a use case.)
 1.  Define costs of a TP, TN, FP, FN of falls classification (option to
     move this into the loop where costs are sampled from a distributions
     to account for uncertainty in their estimates in the literature)
-    -   FP have cost of applying intervention
-    -   FN have cost of patient fall
-    -   TP have cost of intervention + cost of fall\*(1-effectiveness of
+      - FP have cost of applying intervention
+      - FN have cost of patient fall
+      - TP have cost of intervention + cost of fall\*(1-effectiveness of
         intervention on rate of falls)
-    -   TN are cost $0
+      - TN are cost $0
 2.  Select appropriate AUC (\~0.75?) and prevalence (\~3% ) for
     comparable clinical prediction model for falls.
 3.  For sample sizes (N) in \[100, 500, 1000\]: (repeat 500 times at
     each sample size)
-    -   Get training data by sampling observed predictor values and
+      - Get training data by sampling observed predictor values and
         outcome by transforming AUC into Cohens’ D and sampling from two
         normal distributions, the first (negative events) with mean=0
         and the second (positive events) with mean=Cohens’D. (Both with
         sd=1.)
-    -   Fit a logistic regression model using this sampled data.
-    -   Fit predicted probabilities to the training data and use these
+      - Fit a logistic regression model using this sampled data.
+      - Fit predicted probabilities to the training data and use these
         to obtain probability thresholds using each method.
-    -   Get validation data using the same approach but with n=1000.
-    -   Use the previously fit model to estimate probabilities for
+      - Get validation data using the same approach but with n=1000.
+      - Use the previously fit model to estimate probabilities for
         validation data.
-    -   Evaluate the thresholds selected using the training data on the
+      - Evaluate the thresholds selected using the training data on the
         validation data, in terms of mean cost per patient.
 4.  Measure differences in NMB on validation sample dependent on use of
     currently available methods and cost-based approach to determine
     threshold.
 5.  Observe whether this relationship is dependent on the sample size
     taken
+6.  ???
 
 ### Define costs
 
@@ -69,7 +70,7 @@ get_costs <- function(){
   c(
     "TN"=0, 
     "FN"=QALYs_event*wtp, 
-    "TP"=QALYs_event*(1-treatment_effect)*wtp, 
+    "TP"=QALYs_event*(1-treatment_effect)*wtp + treatment_cost, 
     "FP"=treatment_cost
   )
 }
@@ -77,7 +78,7 @@ get_costs()
 ```
 
     ##        TN        FN        TP        FP 
-    ##    0.0000 3504.4305 3173.8869  259.5966
+    ##    0.0000 3504.4305 3433.4835  259.5966
 
 ### Run simulation
 

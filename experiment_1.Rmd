@@ -29,7 +29,7 @@ Question: What are the differences in NMB between models where the Probability t
     * Evaluate the thresholds selected using the training data on the validation data, in terms of mean cost per patient.
 4. Measure differences in NMB on validation sample dependent on use of currently available methods and cost-based approach to determine threshold.
 5. Observe whether this relationship is dependent on the sample size taken
-
+6. ???
 
 ### Define costs
 ```{r}
@@ -62,7 +62,7 @@ get_costs <- function(){
   c(
     "TN"=0, 
     "FN"=QALYs_event*wtp, 
-    "TP"=QALYs_event*(1-treatment_effect)*wtp, 
+    "TP"=QALYs_event*(1-treatment_effect)*wtp + treatment_cost, 
     "FP"=treatment_cost
   )
 }
