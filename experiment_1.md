@@ -219,21 +219,445 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_
 #### I think that this is because, for models with very high discrimination, they’re able to correctly classify a larger proportion of samples, and there are fewer which are classified differently based on selection method. The difference is greater for smaller event rates because a false negative is the most costly classification, and only the cost-based method is “aware” of this. This is also why, when the event rate is very high, there is not much of a difference between methods (cost-based method is focused on correctly classifying the majority class but so are the other methods).
 
 ``` r
+library(parallel)
+n_cluster <- detectCores()
+cl <- makeCluster(n_cluster)
+cl <- parallelly::autoStopCluster(cl)
+
 g <- expand.grid(
   sim_auc=c(0.65, 0.75, 0.85, 0.95),
-  event_rate=c(0.01, 0.03, 0.1, 0.3, 0.7, 0.9, 0.99)
+  event_rate=c(0.01, 0.03, 0.1, 0.3, 0.7, 0.9)
 )
 
-out <- map2(
-  .x=g$sim_auc, .y=g$event_rate, 
-  function(.x, .y) 
-    do_simulation(
-      sample_size=500, n_sims=100, n_valid=1000, 
-      sim_auc=.x, event_rate=.y, fx_costs=get_costs, get_what="plot"
-    )
+clusterExport(cl, {
+  c("do_simulation", "g", "get_costs")
+})
+
+clusterEvalQ(cl, {
+  library(tidyverse)
+  source("src/utils.R")
+})
+```
+
+    ## [[1]]
+    ## [[1]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[1]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[2]]
+    ## [[2]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[2]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[3]]
+    ## [[3]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[3]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[4]]
+    ## [[4]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[4]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[5]]
+    ## [[5]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[5]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[6]]
+    ## [[6]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[6]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[7]]
+    ## [[7]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[7]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[8]]
+    ## [[8]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[8]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[9]]
+    ## [[9]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[9]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[10]]
+    ## [[10]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[10]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[11]]
+    ## [[11]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[11]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[12]]
+    ## [[12]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[12]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[13]]
+    ## [[13]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[13]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[14]]
+    ## [[14]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[14]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[15]]
+    ## [[15]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[15]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[16]]
+    ## [[16]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[16]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[17]]
+    ## [[17]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[17]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[18]]
+    ## [[18]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[18]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[19]]
+    ## [[19]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[19]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[20]]
+    ## [[20]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[20]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[21]]
+    ## [[21]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[21]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[22]]
+    ## [[22]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[22]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[23]]
+    ## [[23]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[23]]$visible
+    ## [1] FALSE
+    ## 
+    ## 
+    ## [[24]]
+    ## [[24]]$value
+    ## function (d, pt = 0.2) 
+    ## {
+    ##     TN <- sum(d$predicted < pt & d$actual == 0)
+    ##     FN <- sum(d$predicted < pt & d$actual == 1)
+    ##     TP <- sum(d$predicted > pt & d$actual == 1)
+    ##     FP <- sum(d$predicted > pt & d$actual == 0)
+    ##     Se <- TP/(TP + FN)
+    ##     Sp <- TN/(FP + TN)
+    ##     list(TN = TN, FN = FN, TP = TP, FP = FP, Se = Se, Sp = Sp)
+    ## }
+    ## 
+    ## [[24]]$visible
+    ## [1] FALSE
+
+``` r
+ll <- parallel::parLapply(
+  cl, 
+  1:nrow(g), 
+  function(i) do_simulation(
+    sample_size=500, n_sims=100, n_valid=1000, 
+    sim_auc=g$sim_auc[i], event_rate=g$event_rate[i], 
+    fx_costs=get_costs, get_what="plot"
+  )
 )
 
-cowplot::plot_grid(plotlist=out, ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=ll, ncol=length(unique(g$sim_auc)))
 ```
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->

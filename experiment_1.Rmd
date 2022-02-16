@@ -206,19 +206,48 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_
 #### I think that this is because, for models with very high discrimination, they're able to correctly classify a larger proportion of samples, and there are fewer which are classified differently based on selection method. The difference is greater for smaller event rates because a false negative is the most costly classification, and only the cost-based method is "aware" of this. This is also why, when the event rate is very high, there is not much of a difference between methods (cost-based method is focused on correctly classifying the majority class but so are the other methods).
 ```{r, fig.height=24, fig.width=12}
 
+library(parallel)
+n_cluster <- detectCores()
+cl <- makeCluster(n_cluster)
+cl <- parallelly::autoStopCluster(cl)
+
 g <- expand.grid(
   sim_auc=c(0.65, 0.75, 0.85, 0.95),
-  event_rate=c(0.01, 0.03, 0.1, 0.3, 0.7, 0.9, 0.99)
+  event_rate=c(0.01, 0.03, 0.1, 0.3, 0.7, 0.9)
 )
 
-out <- map2(
-  .x=g$sim_auc, .y=g$event_rate, 
-  function(.x, .y) 
-    do_simulation(
-      sample_size=500, n_sims=100, n_valid=1000, 
-      sim_auc=.x, event_rate=.y, fx_costs=get_costs, get_what="plot"
-    )
+clusterExport(cl, {
+  c("do_simulation", "g", "get_costs")
+})
+
+clusterEvalQ(cl, {
+  library(tidyverse)
+  source("src/utils.R")
+})
+
+
+ll <- parallel::parLapply(
+  cl, 
+  1:nrow(g), 
+  function(i) do_simulation(
+    sample_size=500, n_sims=100, n_valid=1000, 
+    sim_auc=g$sim_auc[i], event_rate=g$event_rate[i], 
+    fx_costs=get_costs, get_what="plot"
+  )
 )
 
-cowplot::plot_grid(plotlist=out, ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=ll, ncol=length(unique(g$sim_auc)))
+
+```
+
+```{r, include=FALSE, fig.height=24, fig.width=12}
+# out <- map2(
+#   .x=g$sim_auc, .y=g$event_rate, 
+#   function(.x, .y) 
+#     do_simulation(
+#       sample_size=500, n_sims=100, n_valid=1000, 
+#       sim_auc=.x, event_rate=.y, fx_costs=get_costs, get_what="plot"
+#     )
+# )
+# cowplot::plot_grid(plotlist=out, ncol=length(unique(g$sim_auc)))
 ```
