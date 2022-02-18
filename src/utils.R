@@ -109,7 +109,7 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
 
   screen_df <- map_dfr(pt_seq, f)
 
-  pt_cost_effective <- mean(screen_df$pt[screen_df$cost_effective==min(screen_df$cost_effective)])
+  pt_cost_effective <- mean(screen_df$pt[screen_df$cost_effective==max(screen_df$cost_effective)])
   pt_cz <- mean(screen_df$pt[screen_df$cz==max(screen_df$cz)])
   pt_iu <- mean(screen_df$pt[screen_df$iu==min(screen_df$iu)])
 

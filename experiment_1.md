@@ -9,27 +9,27 @@ versus costs-based selection. (Hospital falls as a use case.)
 1.  Define costs of a TP, TN, FP, FN of falls classification (option to
     move this into the loop where costs are sampled from a distributions
     to account for uncertainty in their estimates in the literature)
-      - FP have cost of applying intervention
-      - FN have cost of patient fall
-      - TP have cost of intervention + cost of fall\*(1-effectiveness of
+    -   FP have cost of applying intervention
+    -   FN have cost of patient fall
+    -   TP have cost of intervention + cost of fall\*(1-effectiveness of
         intervention on rate of falls)
-      - TN are cost $0
+    -   TN are cost $0
 2.  Select appropriate AUC (\~0.75?) and prevalence (\~3% ) for
     comparable clinical prediction model for falls.
 3.  For sample sizes (N) in \[100, 500, 1000\]: (repeat 500 times at
     each sample size)
-      - Get training data by sampling observed predictor values and
+    -   Get training data by sampling observed predictor values and
         outcome by transforming AUC into Cohens’ D and sampling from two
         normal distributions, the first (negative events) with mean=0
         and the second (positive events) with mean=Cohens’D. (Both with
         sd=1.)
-      - Fit a logistic regression model using this sampled data.
-      - Fit predicted probabilities to the training data and use these
+    -   Fit a logistic regression model using this sampled data.
+    -   Fit predicted probabilities to the training data and use these
         to obtain probability thresholds using each method.
-      - Get validation data using the same approach but with n=1000.
-      - Use the previously fit model to estimate probabilities for
+    -   Get validation data using the same approach but with n=1000.
+    -   Use the previously fit model to estimate probabilities for
         validation data.
-      - Evaluate the thresholds selected using the training data on the
+    -   Evaluate the thresholds selected using the training data on the
         validation data, in terms of mean cost per patient.
 4.  Measure differences in NMB on validation sample dependent on use of
     currently available methods and cost-based approach to determine
@@ -41,60 +41,39 @@ versus costs-based selection. (Hospital falls as a use case.)
 ### Define costs
 
 ``` r
-treatment_cost <-250
-treatment_effect <- 0.1
-wtp <- 28000
-QALYs_event <- 0.1
+# get_costs <- function(){
+#   treatment_effect <- rbeta(1, 111.111, 1000)
+#   QALYs_event <- rbeta(1, 10/3, 30)
+#   treatment_cost <- rgamma(1, 250)
+#   wtp <- 28000
+#   
+#   c(
+#     "TN"=0, 
+#     "FN"=QALYs_event*wtp, 
+#     "TP"=QALYs_event*(1-treatment_effect)*wtp + treatment_cost, 
+#     "FP"=treatment_cost
+#   )
+# }
+# get_costs()
 
-cost_vector <- c(
-  "TN"=0, 
-  "FN"=QALYs_event*wtp, 
-  "TP"=QALYs_event*(1-treatment_effect)*wtp, 
-  "FP"=treatment_cost
-)
-
-f_plot <- function(beta, rate){
-  alpha <- get_alpha(beta, rate)
-  print(alpha)
-  data.frame(sample=rbeta(n=10000, alpha, beta)) %>%
-    ggplot(aes(sample)) + geom_density()
-}
-# f_plot(1000, 0.1)
-
-get_costs <- function(){
-  treatment_effect <- rbeta(1, 111.111, 1000)
-  QALYs_event <- rbeta(1, 10/3, 30)
-  treatment_cost <- rgamma(1, 250)
-  wtp <- 28000
-  
-  c(
-    "TN"=0, 
-    "FN"=QALYs_event*wtp, 
-    "TP"=QALYs_event*(1-treatment_effect)*wtp + treatment_cost, 
-    "FP"=treatment_cost
-  )
-}
-get_costs()
-```
-
-    ##        TN        FN        TP        FP 
-    ##    0.0000 3504.4305 3433.4835  259.5966
-
-``` r
 get_nmb <- function(){
   treatment_effect <- rbeta(1, 111.111, 1000) #QALY increment from treatment
-  QALYs_event <- rbeta(1, 10/3, 30)*-1 #QALY decrement from event
-  treatment_cost <- rgamma(1, 250)
+  QALYs_event <- -rbeta(1, 10/3, 30) #QALY decrement from event
+  treatment_cost <- rgamma(1, 100)
   wtp <- 28000
   
   c(
     "TN"=0,
     "FN"=QALYs_event*wtp,
     "TP"=QALYs_event*(1-treatment_effect)*wtp - treatment_cost,
-    "FP"=treatment_cost*-1
+    "FP"=-treatment_cost
   )
 }
+get_nmb()
 ```
+
+    ##         TN         FN         TP         FP 
+    ##     0.0000 -3504.4305 -3279.7998  -105.9129
 
 ### Run simulation
 
@@ -117,22 +96,22 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_
     
     valid_sample$predicted <- predict(model, type="response", newdata=valid_sample)
     
-    cost_vector <- fx_costs()
+    value_vector <- fx_costs()
     
     thresholds <- get_thresholds(
       predicted=train_sample$predicted, 
       actual=train_sample$actual,
-      costs=cost_vector
+      costs=value_vector
     )
     
-    cost_vector <- fx_costs()
+    value_vector <- fx_costs()
     
     cost_threshold <- function(pt){
       classify_samples(
         predicted=valid_sample$predicted,
         actual=valid_sample$actual,
         pt=pt,
-        costs=cost_vector
+        costs=value_vector
       )
     }
     
@@ -147,7 +126,6 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_
         cz_cost=cost_threshold(thresholds$pt_cz), 
         iu_cost=cost_threshold(thresholds$pt_iu),
         er_cost=cost_threshold(thresholds$pt_er)
-        
       )
     )
     
@@ -197,7 +175,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_
   }
 }
 
-# do_simulation(sample_size=500, n_sims=20, n_valid=1000, sim_auc=0.65, event_rate=0.03, fx_costs=get_costs, get_what=c("data", "plot"))
+# do_simulation(sample_size=500, n_sims=20, n_valid=1000, sim_auc=0.65, event_rate=0.03, fx_costs=get_nmb, get_what=c("data", "plot"))
 
 # p_list <- lapply(c(0.03, 0.1, 0.5, 0.9, 0.97), function(x)do_simulation(sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.65, event_rate=x, fx_costs=get_costs, get_what="plot"))
 # p_list
@@ -225,7 +203,7 @@ g <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g", "get_costs")
+  c("do_simulation", "g", "get_nmb")
 })
 
 invisible(clusterEvalQ(cl, {
@@ -240,11 +218,11 @@ ll <- parallel::parLapply(
   function(i) do_simulation(
     sample_size=500, n_sims=100, n_valid=1000,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    fx_costs=get_costs, get_what="plot"
+    fx_costs=get_nmb, get_what="plot"
   )
 )
 
 cowplot::plot_grid(plotlist=ll, ncol=length(unique(g$sim_auc)))
 ```
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+![](experiment_1_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
