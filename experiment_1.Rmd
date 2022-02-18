@@ -67,6 +67,21 @@ get_costs <- function(){
   )
 }
 get_costs()
+
+get_nmb <- function(){
+  treatment_effect <- rbeta(1, 111.111, 1000) #QALY increment from treatment
+  QALYs_event <- rbeta(1, 10/3, 30)*-1 #QALY decrement from event
+  treatment_cost <- rgamma(1, 250)
+  wtp <- 28000
+  
+  c(
+    "TN"=0,
+    "FN"=QALYs_event*wtp,
+    "TP"=QALYs_event*(1-treatment_effect)*wtp - treatment_cost,
+    "FP"=treatment_cost*-1
+  )
+}
+get_nmb()
 ```
 
 
