@@ -1,6 +1,6 @@
 Experiment 1
 ================
-18 February, 2022
+21 February, 2022
 
 Question: What are the differences in NMB between models where the
 Probability threshold was based on the currently available methods
@@ -78,7 +78,8 @@ get_nmb()
 ### Run simulation
 
 ``` r
-do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_costs, get_what=c("data", "plot")){
+do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_costs, resample_values=TRUE, get_what=c("data", "plot"), seed=42){
+  if(!is.null(seed)) set.seed(seed)
   df_result <- data.frame()
   df_thresholds <- data.frame()
   
@@ -104,7 +105,9 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_
       costs=value_vector
     )
     
-    value_vector <- fx_costs()
+    if(resample_values){
+      value_vector <- fx_costs()
+    }
     
     cost_threshold <- function(pt){
       classify_samples(
@@ -175,7 +178,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_
   }
 }
 
-# do_simulation(sample_size=500, n_sims=20, n_valid=1000, sim_auc=0.65, event_rate=0.03, fx_costs=get_nmb, get_what=c("data", "plot"))
+# do_simulation(sample_size=500, n_sims=20, n_valid=1000, sim_auc=0.65, event_rate=0.03, fx_costs=get_nmb, resample_costs=TRUE, get_what=c("data", "plot"))
 
 # p_list <- lapply(c(0.03, 0.1, 0.5, 0.9, 0.97), function(x)do_simulation(sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.65, event_rate=x, fx_costs=get_costs, get_what="plot"))
 # p_list
@@ -212,17 +215,33 @@ invisible(clusterEvalQ(cl, {
 }))
 
 
-ll <- parallel::parLapply(
+ll1 <- parallel::parLapply(
   cl,
   1:nrow(g),
   function(i) do_simulation(
     sample_size=500, n_sims=100, n_valid=1000,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    fx_costs=get_nmb, get_what="plot"
+    fx_costs=get_nmb, get_what="plot", resample_values=TRUE
   )
 )
 
-cowplot::plot_grid(plotlist=ll, ncol=length(unique(g$sim_auc)))
+ll2 <- parallel::parLapply(
+  cl,
+  1:nrow(g),
+  function(i) do_simulation(
+    sample_size=500, n_sims=100, n_valid=1000,
+    sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
+    fx_costs=get_nmb, get_what="plot", resample_values=FALSE
+  )
+)
+
+cowplot::plot_grid(plotlist=ll1, ncol=length(unique(g$sim_auc)))
 ```
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+
+``` r
+cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
+```
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
