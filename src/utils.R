@@ -108,15 +108,16 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
   }
 
   screen_df <- map_dfr(pt_seq, f)
+  f <- median
 
-  pt_cost_effective <- mean(screen_df$pt[screen_df$cost_effective==max(screen_df$cost_effective)])
-  pt_cz <- mean(screen_df$pt[screen_df$cz==max(screen_df$cz)])
-  pt_iu <- mean(screen_df$pt[screen_df$iu==min(screen_df$iu)])
+  pt_cost_effective <- f(screen_df$pt[screen_df$cost_effective==max(screen_df$cost_effective)])
+  pt_cz <- f(screen_df$pt[screen_df$cz==max(screen_df$cz)])
+  pt_iu <- f(screen_df$pt[screen_df$iu==min(screen_df$iu)])
 
   list(pt_er=pt_er, pt_youden=pt_youden, pt_cost_effective=pt_cost_effective, pt_cz=pt_cz, pt_iu=pt_iu)
 }
 
-get_confusion <- function(d, pt=0.2){
+get_confusion <- function(d, pt){
   TN <- sum(d$predicted < pt & d$actual==0)
   FN <- sum(d$predicted < pt & d$actual==1)
   TP <- sum(d$predicted > pt & d$actual==1)
