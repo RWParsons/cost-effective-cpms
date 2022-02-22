@@ -8,6 +8,7 @@ output: rmarkdown::github_document
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 set.seed(42)
 library(tidyverse)
+library(data.table)
 source("src/utils.R")
 ```
 
@@ -82,7 +83,10 @@ get_nmb()
 ### Run simulation
 ```{r}
 
-do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_costs, resample_values=TRUE, get_what=c("data", "plot"), seed=42){
+do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, 
+                          fx_costs, resample_values=TRUE, 
+                          get_what=c("data", "plot"), plot_type="boxplot",
+                          seed=42){
   if(!is.null(seed)) set.seed(seed)
   df_result <- data.frame()
   df_thresholds <- data.frame()
@@ -155,24 +159,67 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_
   df_plot <- df_result
   names(df_plot)[-1] <- method_levels <- paste0(names(df_plot)[-1], "(", pts, ")")
   
-  p <- 
-    df_plot %>%
-    pivot_longer(!n_sim, names_to="method", values_to="cost") %>%
-    mutate(method=str_remove(method, "_cost"),
-           method=factor(method, levels=str_remove(method_levels, "_cost"))) %>%
+  if(plot_type=="boxplot"){
+    p <- 
+      df_plot %>%
+      pivot_longer(!n_sim, names_to="method", values_to="nmb") %>%
+      mutate(method=str_remove(method, "_cost"),
+             method=factor(method, levels=str_remove(method_levels, "_cost"))) %>%
+      
+      ggplot(aes(method, nmb)) +
+      geom_boxplot() +
+      geom_jitter(alpha=0.1, width=0.1) +
+      theme_bw() +
+      labs(
+        # y="Mean cost per patient",
+        # x="Probability threshold selection method",
+        y="", x="",
+        subtitle=glue::glue("auc: {sim_auc}; event_rate: {event_rate}")
+      ) +
+      scale_y_continuous(labels=scales::dollar_format()) +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  }else{
+    get_medians <- function(x, nboot=500){
+      m <- median(x)
+      
+      boots <- map_dbl(
+        1:nboot, 
+        function(v){
+          s <- sample(x, size=length(v), replace=T)
+          median(s)
+        }
+      )
+      list(median=m, median_se=sd(boots))
+    }
     
-    ggplot(aes(method, cost)) +
-    geom_boxplot() +
-    geom_jitter(alpha=0.1, width=0.1) +
-    theme_bw() +
-    labs(
-      # y="Mean cost per patient",
-      # x="Probability threshold selection method",
-      y="", x="",
-      subtitle=glue::glue("auc: {sim_auc}; event_rate: {event_rate}")
-    ) +
-    scale_y_continuous(labels=scales::dollar_format()) +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+    df_plot2 <- 
+      df_plot %>%
+      pivot_longer(!n_sim, values_to="nmb", names_to="method")
+    
+    
+    df_plot2 <- as.data.table(df_plot2)[
+      ,
+      get_medians(x=nmb),
+      by = list(method)
+    ]
+    
+    p <-
+      df_plot2 %>%
+      mutate(method=str_remove(method, "_cost"),
+             method=factor(method, levels=str_remove(method_levels, "_cost"))) %>%
+      ggplot(aes(method, median)) +
+      geom_point() +
+      geom_errorbar(aes(ymin=median-median_se, ymax=median+median_se, width=0)) +
+      theme_bw() +
+      labs(
+        # y="Mean cost per patient",
+        # x="Probability threshold selection method",
+        y="", x="",
+        subtitle=glue::glue("auc: {sim_auc}; event_rate: {event_rate}")
+      ) +
+      scale_y_continuous(labels=scales::dollar_format()) +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  }
   
   if(length(get_what)==1){
     if(get_what=="data"){return(df_result)}
@@ -182,7 +229,10 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, fx_
   }
 }
 
-# do_simulation(sample_size=500, n_sims=20, n_valid=1000, sim_auc=0.65, event_rate=0.03, fx_costs=get_nmb, resample_costs=TRUE, get_what=c("data", "plot"))
+# do_simulation(
+#   sample_size=500, n_sims=50, n_valid=500, sim_auc=0.65, event_rate=0.03, 
+#   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "point"
+# )
 
 # p_list <- lapply(c(0.03, 0.1, 0.5, 0.9, 0.97), function(x)do_simulation(sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.65, event_rate=x, fx_costs=get_costs, get_what="plot"))
 # p_list
@@ -212,6 +262,7 @@ clusterExport(cl, {
 
 invisible(clusterEvalQ(cl, {
   library(tidyverse)
+  library(data.table)
   source("src/utils.R")
 }))
 
@@ -222,7 +273,8 @@ ll1 <- parallel::parLapply(
   function(i) do_simulation(
     sample_size=500, n_sims=100, n_valid=1000,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    fx_costs=get_nmb, get_what="plot", resample_values=TRUE
+    fx_costs=get_nmb, get_what="plot", resample_values=TRUE,
+    plot_type="point"
   )
 )
 
@@ -232,7 +284,8 @@ ll2 <- parallel::parLapply(
   function(i) do_simulation(
     sample_size=500, n_sims=100, n_valid=1000,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    fx_costs=get_nmb, get_what="plot", resample_values=FALSE
+    fx_costs=get_nmb, get_what="plot", resample_values=FALSE,
+    plot_type="point"
   )
 )
 
