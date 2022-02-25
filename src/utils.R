@@ -77,18 +77,24 @@ classify_samples <- function(predicted, actual, pt, costs){
   # costs:  named vector containing costs for each possible correct or incorrect classification (2x2)
   #         for example: costs <- c("TN"=0, "FN"=100, "TP"=80, "FP"=5)
 
-  d <- data.frame(
-    predicted=predicted,
-    actual=actual
-  )
-  d$cost <- NA
-  d$cost[d$predicted < pt & d$actual==0] <- costs["TN"]
-  d$cost[d$predicted < pt & d$actual==1] <- costs["FN"]
-  d$cost[d$predicted > pt & d$actual==1] <- costs["TP"]
-  d$cost[d$predicted > pt & d$actual==0] <- costs["FP"]
+  d <- cbind(predicted, actual, NA)
+  colnames(d) <- c("predicted", "actual", "nmb")
 
-  mean(d$cost)
+  d[d[,"predicted"] < pt & d[,"actual"]==0, "nmb"] <- costs["TN"]
+
+  d[d[,"predicted"] < pt & d[,"actual"]==1, "nmb"] <- costs["FN"]
+  d[d[,"predicted"] > pt & d[,"actual"]==1, "nmb"] <- costs["TP"]
+  d[d[,"predicted"] > pt & d[,"actual"]==0, "nmb"] <- costs["FP"]
+
+  mean(d[,"nmb"])
 }
+
+get_smooth_max <- function(x, y){
+  smooth <- do.call(supsmu, data.frame(x, y))
+  max.idx <- which.max(smooth$y)
+  smooth$x[max.idx]
+}
+
 
 get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs){
   rocobj <- pROC::roc(as.factor(actual), predicted, direction="<", quiet=TRUE)
@@ -108,11 +114,13 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
   }
 
   screen_df <- map_dfr(pt_seq, f)
-  f <- median
+  fx_select <- median
 
-  pt_cost_effective <- f(screen_df$pt[screen_df$cost_effective==max(screen_df$cost_effective)])
-  pt_cz <- f(screen_df$pt[screen_df$cz==max(screen_df$cz)])
-  pt_iu <- f(screen_df$pt[screen_df$iu==min(screen_df$iu)])
+  # pt_cost_effective <- fx_select(screen_df$pt[screen_df$cost_effective==max(screen_df$cost_effective)])
+  # pt_cost_effective_smth <- get_smooth_max(x=screen_df$pt, y=screen_df$cost_effective)
+  pt_cost_effective <- get_smooth_max(x=screen_df$pt, y=screen_df$cost_effective)
+  pt_cz <- fx_select(screen_df$pt[screen_df$cz==max(screen_df$cz)])
+  pt_iu <- fx_select(screen_df$pt[screen_df$iu==min(screen_df$iu)])
 
   list(pt_er=pt_er, pt_youden=pt_youden, pt_cost_effective=pt_cost_effective, pt_cz=pt_cz, pt_iu=pt_iu)
 }
