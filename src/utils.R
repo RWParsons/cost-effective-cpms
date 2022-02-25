@@ -90,7 +90,7 @@ classify_samples <- function(predicted, actual, pt, costs){
 }
 
 get_smooth_max <- function(x, y){
-  smooth <- do.call(supsmu, data.frame(x, y))
+  smooth <- do.call(supsmu, list(x, y))
   max.idx <- which.max(smooth$y)
   smooth$x[max.idx]
 }
@@ -104,7 +104,7 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
 
   f <- function(pt){
     # new threshold selection methods are from here: https://www.hindawi.com/journals/cmmm/2017/3762651/
-    cm <- get_confusion(d=data.frame(predicted=predicted, actual=actual), pt=pt)
+    cm <- get_confusion(predicted=predicted, actual=actual, pt=pt)
     data.frame(
       pt=pt,
       cost_effective=cm$TN*costs["TN"] + cm$TP*costs["TP"] + cm$FN*costs["FN"] + cm$FP*costs["FP"],
@@ -125,11 +125,11 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
   list(pt_er=pt_er, pt_youden=pt_youden, pt_cost_effective=pt_cost_effective, pt_cz=pt_cz, pt_iu=pt_iu)
 }
 
-get_confusion <- function(d, pt){
-  TN <- sum(d$predicted < pt & d$actual==0)
-  FN <- sum(d$predicted < pt & d$actual==1)
-  TP <- sum(d$predicted > pt & d$actual==1)
-  FP <- sum(d$predicted > pt & d$actual==0)
+get_confusion <- function(predicted, actual, pt){
+  TN <- sum(predicted < pt & actual==0)
+  FN <- sum(predicted < pt & actual==1)
+  TP <- sum(predicted > pt & actual==1)
+  FP <- sum(predicted > pt & actual==0)
 
   Se <- TP/(TP+FN)
   Sp <- TN/(FP+TN)
