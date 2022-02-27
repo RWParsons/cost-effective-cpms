@@ -154,7 +154,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       )
     )
   }
-  
+  return(df_result)
   pts <- round(colMeans(df_thresholds)[-1], 3)
   df_plot <- df_result
   names(df_plot)[-1] <- method_levels <- paste0(names(df_plot)[-1], "(", pts, ")")
@@ -229,10 +229,10 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   }
 }
 
-# do_simulation(
-#   sample_size=500, n_sims=50, n_valid=500, sim_auc=0.65, event_rate=0.03, 
-#   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "point"
-# )
+do_simulation(
+  sample_size=500, n_sims=50, n_valid=500, sim_auc=0.65, event_rate=0.03,
+  fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "point"
+)
 
 # p_list <- lapply(c(0.03, 0.1, 0.5, 0.9, 0.97), function(x)do_simulation(sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.65, event_rate=x, fx_costs=get_costs, get_what="plot"))
 # p_list
@@ -305,4 +305,347 @@ cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
 #     )
 # )
 # cowplot::plot_grid(plotlist=out, ncol=length(unique(g$sim_auc)))
+```
+
+# {cutpointr} offers a function `total_utility()` which is very similar to our proposed method. 
+If we highjack it a bit as I do below, then it offers several optimisation methods to find the maximum for our given function.  I pass fx_total_nmb() and give it the same arguments as cutpointr::total_utility() so that it works the way as our existing approach does. They both find very similar cutpoints using the same data and nmb_vector.
+```{r}
+library(cutpointr)
+fx_total_nmb <- function(tn, tp, fn, fp, utility_tp, utility_tn, cost_fp, cost_fn, ...){
+  tn*utility_tn + tp*utility_tp + fn*cost_fn + fp*cost_fp
+}
+
+cutpointr(data=x, x=predicted, class=actual, method=maximize_metric, metric=fx_total_nmb, utility_tp=nmb_vec["TP"], utility_tn=nmb_vec["TN"], cost_fp=nmb_vec["FP"], cost_fn=nmb_vec["FN"])[['optimal_cutpoint']]
+
+get_thresholds(x$predicted, x$actual, costs=nmb_vec)$pt_cost_effective
+
+```
+
+
+#### everything below here are (unsuccessful) attempts to optimise code so that passing new functions to get probability thresholds is easier. 
+
+It does work, but it makes the code much slower, so probably not worth it...
+```{r}
+source("src/cutpoint_methods.R")
+x <- get_beta_preds(alpha=1, p=0.1, n=1000)$preds 
+
+x$new <- 1 - abs(x$predicted - 0.1)
+
+nmb_vec <- get_nmb()
+
+
+get_thresholds2 <- function(predicted, actual, nmb, metrics, pt_seq=seq(0.01, 0.99, 0.01)){
+  rocobj <- pROC::roc(as.factor(actual), predicted, direction="<", quiet=TRUE)
+  auroc <- pROC::auc(rocobj)
+  cms <- map_dfr(pt_seq, function(p) get_confusion(predicted=predicted, actual=actual, pt=p))
+  cms <- as.matrix.data.frame(cms)
+  # return(cms)
+  parms_list <- list(
+    roc=rocobj, 
+    auc=auroc,
+    predicted=predicted, 
+    actual=actual, 
+    pt_seq=pt_seq, 
+    confusion_matrices=cms, 
+    nmb=nmb,
+    f_select=median
+  )
+  
+  # return(purrr::map(metrics, function(m) do.call(m, parms_list)))
+  # return(do.call("get_nmb_pt", parms_list))
+  # return(list(metrics=metrics, parms_list=parms_list))
+  l <- unlist(purrr::map(metrics, function(m) do.call(m, parms_list)))
+   sapply(metrics, function(m) do.call(m, parms_list))
+}
+
+obj <- get_thresholds2(predicted=x$predicted, actual=x$actual, nmb=nmb_vec, metrics=c("get_er_pt", "get_youden_pt", "get_iu_pt", "get_nmb_pt", "get_cz_pt"))
+
+
+
+f1 <- function(){
+  get_thresholds2(predicted=x$predicted, actual=x$actual, nmb=nmb_vec, metrics=c("get_er_pt", "get_youden_pt", "get_iu_pt", "get_nmb_pt", "get_cz_pt"))
+}
+
+f2 <- function(){
+  get_thresholds(predicted=x$predicted, actual=x$actual,costs=nmb_vec)
+}
+
+profvis({
+  # get_thresholds2(predicted=x$predicted, actual=x$actual, nmb=nmb_vec, metrics=c("get_er_pt", "get_youden_pt", "get_iu_pt", "get_nmb_pt", "get_cz_pt"))
+  get_thresholds(predicted=x$predicted, actual=x$actual,costs=nmb_vec)
+})
+
+
+
+
+microbenchmark::microbenchmark(
+  new=f1(),
+  old=f2()
+)
+
+
+
+f1 <- function(){
+  cms <- matrix(NA, nrow=length(seq(0,1,0.01)), ncol=6)
+  for(i in 1:nrow(cms)){
+    cms[i,] <- unlist(get_confusion(d=data.frame(predicted=x$predicted, actual=x$actual), pt=seq(0,1,0.01)[i]))
+  }
+  return(cms)
+}
+
+f2 <- function(){
+  cms <- map_dfr(seq(0,1,0.01), function(p) get_confusion(d=data.frame(predicted=predicted, actual=actual), pt=p))
+  as.matrix.data.frame(cms)
+}
+
+microbenchmark::microbenchmark(
+  f1, f2
+)
+
+f1()
+unlist(get_confusion(d=data.frame(predicted=x$predicted, actual=x$actual), pt=0.01))
+vapply(seq(0,1,0.01), function(p) get_confusion(d=data.frame(predicted=x$predicted, actual=x$actual), pt=p))
+
+
+```
+
+
+
+
+```{r}
+
+get_nmb()
+cms <- get_thresholds2(
+  predicted=x$predicted,
+  actual=x$actual,
+  nmb=get_nmb(), metrics=c("get_cz_pt")
+)
+#TODO
+# check speed for calculating metrics with confusion matrices as one big matrix!
+# update into new get_thresholds2
+
+get_cz_pt <- function(predicted, actual, pt_seq, confusion_matrices, f_select, ...){
+  out <- confusion_matrices[,"Se"]*confusion_matrices[,"Sp"]
+  f_select(pt_seq[out==max(out)])
+}
+
+out <- get_cz_pt(predicted=x$predicted, actual=x$actual, pt_seq=seq(0,1,0.01), confusion_matrices = cms, f_select=median)
+
+row <- get_thresholds2(
+  predicted=x$predicted,
+  actual=x$actual,
+  nmb=get_nmb(), metrics=c("get_er_pt","get_youden_pt","get_cz_pt","get_iu_pt","get_nmb_pt")
+)
+
+profvis({
+  get_thresholds2(
+    predicted=x$predicted,
+    actual=x$actual,
+    nmb=get_nmb(), metrics=c("get_er_pt","get_youden_pt","get_cz_pt","get_iu_pt","get_nmb_pt")
+  )
+})
+
+microbenchmark::microbenchmark(
+  new=get_thresholds2(
+    predicted=x$predicted,
+    actual=x$actual,
+    nmb=get_nmb(), metrics=c("get_er_pt","get_youden_pt","get_cz_pt","get_iu_pt","get_nmb_pt")
+  ),
+  old=get_thresholds(
+    predicted=x$predicted,
+    actual=x$actual,
+    costs=get_nmb())
+)
+
+
+get_thresholds(
+  predicted=x$predicted,
+  actual=x$actual,
+  costs=get_nmb())
+
+# df <- data.frame(matrix(NA, ncol=8, nrow=500))
+
+# df[1,4:8] <- row
+
+```
+
+
+```{r}
+
+# source("src/cutpoint_methods.R")
+# source("src/utils.R")
+
+do_simulation2 <- function(
+  sample_size, n_sims, n_valid, sim_auc, event_rate, 
+  fx_costs, resample_values=TRUE, 
+  get_what=c("data", "plot"), plot_type="boxplot",
+  cutpoint_methods=c("get_er_pt","get_youden_pt","get_cz_pt","get_iu_pt","get_nmb_pt"),
+  seed=42){
+  
+  if(!is.null(seed)) set.seed(seed)
+  n_cols <- 3 + length(cutpoint_methods)
+  df_result <- matrix(NA, ncol=n_cols, nrow=n_sims)
+  df_thresholds <- matrix(NA, ncol=n_cols, nrow=n_sims)
+  # return(df_thresholds)
+  colnames(df_result) <- 
+    cutpoint_methods %>% 
+    str_remove(., "^get_") %>%
+    str_replace(., "pt$", "nmb") %>% 
+    c("n_sim", "treat_all_nmb", "treat_none_nmb", .)
+  
+  colnames(df_thresholds) <- 
+    cutpoint_methods %>% 
+    str_remove(., "^get_") %>%
+    c("n_sim", "treat_all_pt", "treat_none_pt", .)
+  
+  df_result[,"n_sim"] <- df_thresholds[,"n_sim"] <- 1:n_sims
+  # return(df_result)
+  df_thresholds[,"treat_all_pt"] <- 0
+  df_thresholds[,"treat_none_pt"] <- 1
+  
+  i <- 0
+  while(i < n_sims){
+    train_sample <- get_sample(auc=sim_auc, n_samples=sample_size, prevalence=event_rate)
+    valid_sample <- get_sample(auc=sim_auc, n_samples=n_valid, prevalence=event_rate)
+    if(length(unique(train_sample$actual))!=2 | length(unique(valid_sample$actual))!=2){
+      next
+    }
+    i <- i + 1
+    model <- glm(actual~predicted, data=train_sample, family=binomial())
+    train_sample$predicted <- predict(model, type="response")
+    valid_sample$predicted <- predict(model, type="response", newdata=valid_sample)
+    
+    value_vector <- fx_costs()
+    
+    # thresholds <- get_thresholds2(
+    #   predicted=train_sample$predicted, 
+    #   actual=train_sample$actual,
+    #   nmb=value_vector,
+    #   metrics=cutpoint_methods
+    # )
+    
+    thresholds <- get_thresholds(
+      predicted=train_sample$predicted, 
+      actual=train_sample$actual,
+      costs=value_vector
+    )
+    # return()
+    df_thresholds[i, 4:n_cols] <- unlist(thresholds)
+    # return(df_thresholds)
+    if(resample_values){
+      value_vector <- fx_costs()
+    }
+    
+    get_valid_nmb <- function(pt){
+      classify_samples(
+        predicted=valid_sample$predicted,
+        actual=valid_sample$actual,
+        pt=pt,
+        costs=value_vector
+      )
+    }
+    # return(map_dbl(df_thresholds[i, 2:n_cols], get_valid_nmb))
+    
+    df_result[i, 2:n_cols] <- map_dbl(df_thresholds[i, 2:n_cols], get_valid_nmb)
+    
+  }
+  return(df_result)
+}
+
+
+do_simulation2(sample_size=1000, n_sims=10, n_valid=500, sim_auc=0.8, event_rate=0.1, 
+  fx_costs=get_nmb)
+# mat[1, 2:8]
+
+# t1 <- Sys.time()
+# profvis({
+#   do_simulation2(sample_size=1000, n_sims=100, n_valid=500, sim_auc=0.8, event_rate=0.1, 
+#   fx_costs=get_nmb)
+# })
+# 
+# 
+profvis({
+  do_simulation(sample_size=1000, n_sims=100, n_valid=500, sim_auc=0.8, event_rate=0.1,
+  fx_costs=get_nmb)
+})
+t1 <- Sys.time()
+do_simulation2(sample_size=1000, n_sims=50, n_valid=500, sim_auc=0.8, event_rate=0.1,
+  fx_costs=get_nmb)
+print(Sys.time()-t1)
+t1 <- Sys.time()
+do_simulation(sample_size=1000, n_sims=50, n_valid=500, sim_auc=0.8, event_rate=0.1,
+  fx_costs=get_nmb)
+print(Sys.time()-t1)
+```
+
+
+```{r}
+classify_samples2 <- function(predicted, actual, pt, costs){
+  # predicted: vector of predicted probabilities
+  # actual: binary label to the event
+  # pt: probability threshold used to classify predicted probabilities into classes
+  # costs:  named vector containing costs for each possible correct or incorrect classification (2x2)
+  #         for example: costs <- c("TN"=0, "FN"=100, "TP"=80, "FP"=5)
+
+  d <- cbind(predicted, actual, NA)
+  colnames(d) <- c("predicted", "actual", "nmb")
+  
+  d[d[,"predicted"] < pt & d[,"actual"]==0, "nmb"] <- costs["TN"]
+  
+  d[d[,"predicted"] < pt & d[,"actual"]==1, "nmb"] <- costs["FN"]
+  d[d[,"predicted"] > pt & d[,"actual"]==1, "nmb"] <- costs["TP"]
+  d[d[,"predicted"] > pt & d[,"actual"]==0, "nmb"] <- costs["FP"]
+
+  mean(d[,"nmb"])
+}
+x <- get_beta_preds(alpha=1, p=0.1, n=1000)$preds
+
+
+classify_samples2(predicted=x$predicted, actual=x$actual, pt=0.1, costs=get_nmb())
+
+microbenchmark::microbenchmark(
+  classify_samples2(predicted=x$predicted, actual=x$actual, pt=0.1, costs=get_nmb()),
+  classify_samples(predicted=x$predicted, actual=x$actual, pt=0.1, costs=get_nmb())
+)
+
+
+d <- cbind(x$predicted, x$actual, NA)
+colnames(d) <- c("predicted", "actual", "nmb")
+
+d[d['predicted'] < 0.1, 'nmb'] <- 0
+head(d)
+
+d[1:3,c("nmb")] <- 3
+d[,"nmb"] %>% head()
+
+
+tn_idx <- d[,"predicted"] < 0.1
+d[tn_idx, "nmb"] <- 1
+d %>% head(20)
+
+
+
+get_smooth_max <- function(x, y){
+  smooth <- do.call(supsmu, data.frame(x, y))
+  max.idx <- which.max(smooth$y)
+  smooth$x[max.idx]
+}
+
+
+get_smooth_max2 <- function(x, y){
+  smooth <- do.call(supsmu, list(x, y))
+  max.idx <- which.max(smooth$y)
+  smooth$x[max.idx]
+}
+
+microbenchmark::microbenchmark(
+  get_smooth_max(x=rnorm(100), y=rnorm(100)),
+  get_smooth_max2(x=rnorm(100), y=rnorm(100))
+)
+get_smooth_max(x=rnorm(100), y=rnorm(100))
+
+
+
+
+
 ```
