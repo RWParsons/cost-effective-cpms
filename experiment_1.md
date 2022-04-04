@@ -1,6 +1,6 @@
 Experiment 1
 ================
-22 February, 2022
+04 April, 2022
 
 Question: What are the differences in NMB between models where the
 Probability threshold was based on the currently available methods
@@ -83,8 +83,6 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
                           get_what=c("data", "plot"), plot_type="boxplot",
                           seed=42){
   if(!is.null(seed)) set.seed(seed)
-  df_result <- data.frame()
-  df_thresholds <- data.frame()
   
   i <- 0
   while(i < n_sims){
@@ -121,34 +119,26 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       )
     }
     
-    df_result <- rbind(
-      df_result, 
-      data.frame(
-        n_sim=i, 
-        treat_all=cost_threshold(0),
-        treat_none=cost_threshold(1),
-        cost_effective_cost=cost_threshold(thresholds$pt_cost_effective),
-        youden_cost=cost_threshold(thresholds$pt_youden), 
-        cz_cost=cost_threshold(thresholds$pt_cz), 
-        iu_cost=cost_threshold(thresholds$pt_iu),
-        er_cost=cost_threshold(thresholds$pt_er)
-      )
-    )
-    
-    df_thresholds <- rbind(
-      df_thresholds, 
-      data.frame(
-        n_sim=i, 
-        treat_all=0,
-        treat_none=1,
-        cost_effective_pt=thresholds$pt_cost_effective,
-        youden_pt=thresholds$pt_youden, 
-        cz_pt=thresholds$pt_cz,
-        iu_pt=thresholds$pt_iu,
-        er_pt=thresholds$pt_er
-      )
-    )
+    results_i <-
+      unlist(thresholds) %>%
+      map_dbl(cost_threshold) %>%
+      t()
+    thresholds_i <- unlist(thresholds)
+    if(i==1){
+      df_result <- results_i
+      df_thresholds <- thresholds_i
+    } else {
+      df_result <- rbind(df_result, results_i)
+      df_thresholds <- rbind(df_thresholds, thresholds_i)
+    }
   }
+  
+  df_result <- as.data.frame.matrix(df_result)
+  df_thresholds <- as.data.frame.matrix(df_thresholds)
+  rownames(df_thresholds) <- NULL
+  
+  df_result <- add_column(df_result, n_sim=1:nrow(df_result), .before=T)
+  df_thresholds <- add_column(df_thresholds, n_sim=1:nrow(df_thresholds), .before=T)
   
   pts <- round(colMeans(df_thresholds)[-1], 3)
   df_plot <- df_result
@@ -158,16 +148,12 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     p <- 
       df_plot %>%
       pivot_longer(!n_sim, names_to="method", values_to="nmb") %>%
-      mutate(method=str_remove(method, "_cost"),
-             method=factor(method, levels=str_remove(method_levels, "_cost"))) %>%
-      
+      mutate(method=factor(method, levels=method_levels)) %>%
       ggplot(aes(method, nmb)) +
       geom_boxplot() +
       geom_jitter(alpha=0.1, width=0.1) +
       theme_bw() +
       labs(
-        # y="Mean cost per patient",
-        # x="Probability threshold selection method",
         y="", x="",
         subtitle=glue::glue("auc: {sim_auc}; event_rate: {event_rate}")
       ) +
@@ -191,7 +177,6 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       df_plot %>%
       pivot_longer(!n_sim, values_to="nmb", names_to="method")
     
-    
     df_plot2 <- as.data.table(df_plot2)[
       ,
       get_medians(x=nmb),
@@ -200,15 +185,12 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     
     p <-
       df_plot2 %>%
-      mutate(method=str_remove(method, "_cost"),
-             method=factor(method, levels=str_remove(method_levels, "_cost"))) %>%
+      mutate(method=factor(method, levels=method_levels)) %>%
       ggplot(aes(method, median)) +
       geom_point() +
       geom_errorbar(aes(ymin=median-median_se, ymax=median+median_se, width=0)) +
       theme_bw() +
       labs(
-        # y="Mean cost per patient",
-        # x="Probability threshold selection method",
         y="", x="",
         subtitle=glue::glue("auc: {sim_auc}; event_rate: {event_rate}")
       ) +
@@ -224,13 +206,11 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   }
 }
 
-# do_simulation(
-#   sample_size=500, n_sims=50, n_valid=500, sim_auc=0.65, event_rate=0.03, 
+# test_run <- do_simulation(
+#   sample_size=500, n_sims=20, n_valid=500, sim_auc=0.7, event_rate=0.03,
 #   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "point"
 # )
-
-# p_list <- lapply(c(0.03, 0.1, 0.5, 0.9, 0.97), function(x)do_simulation(sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.65, event_rate=x, fx_costs=get_costs, get_what="plot"))
-# p_list
+# test_run
 ```
 
 ## search through a grid of combinations of AUC and event rates to see how this influences the differences between probability threshold methods. The same costs were used in all simulations (distributions at top of document) and are resampled separately for training and validation.
@@ -261,7 +241,9 @@ clusterExport(cl, {
 invisible(clusterEvalQ(cl, {
   library(tidyverse)
   library(data.table)
+  library(cutpointr)
   source("src/utils.R")
+  source("src/cutpoint_methods.R")
 }))
 
 
