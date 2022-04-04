@@ -152,9 +152,9 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
   list(
     treat_all=0,
     treat_none=1,
+    cost_effective=pt_cost_effective,
     er=pt_er,
     youden=pt_youden,
-    cost_effective=pt_cost_effective,
     cz=pt_cz,
     iu=pt_iu
   )
