@@ -100,15 +100,22 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
   rocobj <- pROC::roc(as.factor(actual), predicted, direction="<", quiet=TRUE)
   auc <- pROC::auc(rocobj)
   pt_er <- pROC::coords(rocobj, "best", best.method="closest.topleft")$threshold
-  pt_youden <- pROC::coords(rocobj, "best", best.method="youden")$threshold
+  # pt_youden <- pROC::coords(rocobj, "best", best.method="youden")$threshold
+  pt_youden <- cutpointr(
+    x=predicted, class=actual, method=maximize_metric, metric=youden,
+    silent=TRUE
+  )[['optimal_cutpoint']]
+  if (pt_youden > 1) {
+    pt_youden <- 1
+  }
 
   f <- function(pt){
     # new threshold selection methods are from here: https://www.hindawi.com/journals/cmmm/2017/3762651/
     cm <- get_confusion(predicted=predicted, actual=actual, pt=pt)
     data.frame(
       pt=pt,
-      cost_effective=cm$TN*costs["TN"] + cm$TP*costs["TP"] + cm$FN*costs["FN"] + cm$FP*costs["FP"],
-      cz=cm$Se*cm$Sp,
+      # cost_effective=cm$TN*costs["TN"] + cm$TP*costs["TP"] + cm$FN*costs["FN"] + cm$FP*costs["FP"],
+      # cz=cm$Se*cm$Sp,
       iu=abs(cm$Se - auc) + abs(cm$Sp - auc)
     )
   }
@@ -118,11 +125,39 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
 
   # pt_cost_effective <- fx_select(screen_df$pt[screen_df$cost_effective==max(screen_df$cost_effective)])
   # pt_cost_effective_smth <- get_smooth_max(x=screen_df$pt, y=screen_df$cost_effective)
-  pt_cost_effective <- get_smooth_max(x=screen_df$pt, y=screen_df$cost_effective)
-  pt_cz <- fx_select(screen_df$pt[screen_df$cz==max(screen_df$cz)])
-  pt_iu <- fx_select(screen_df$pt[screen_df$iu==min(screen_df$iu)])
 
-  list(pt_er=pt_er, pt_youden=pt_youden, pt_cost_effective=pt_cost_effective, pt_cz=pt_cz, pt_iu=pt_iu)
+  # pt_cost_effective <- get_smooth_max(x=screen_df$pt, y=screen_df$cost_effective)
+  pt_cost_effective <- cutpointr(
+    x=predicted, class=actual, method=maximize_metric, metric=fx_total_nmb,
+    utility_tp=costs["TP"], utility_tn=costs["TN"],
+    cost_fp=costs["FP"], cost_fn=costs["FN"],
+    silent=TRUE
+  )[['optimal_cutpoint']]
+  if (pt_cost_effective > 1) {
+    pt_cost_effective <- 1
+  }
+
+  # pt_cz <- fx_select(screen_df$pt[screen_df$cz==max(screen_df$cz)])
+  pt_cz <- cutpointr(
+    x=predicted, class=actual, method=maximize_metric, metric=fx_prod_sn_sp,
+    silent=TRUE
+  )[['optimal_cutpoint']]
+  if (pt_cz > 1) {
+    pt_cz <- 1
+  }
+
+  pt_iu <- fx_select(screen_df$pt[screen_df$iu==min(screen_df$iu)])
+  # Can't do IU method in cutpointsR as of yet as it requires the auc and this isn't passed to the metric call in the package - I have DM'd Christian Thiele to see whether he would be able to add it.
+
+  list(
+    treat_all=0,
+    treat_none=1,
+    er=pt_er,
+    youden=pt_youden,
+    cost_effective=pt_cost_effective,
+    cz=pt_cz,
+    iu=pt_iu
+  )
 }
 
 get_confusion <- function(predicted, actual, pt){

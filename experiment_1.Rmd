@@ -9,7 +9,9 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 set.seed(42)
 library(tidyverse)
 library(data.table)
+library(cutpointr)
 source("src/utils.R")
+source("src/cutpoint_methods.R")
 ```
 
 
@@ -88,8 +90,6 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
                           get_what=c("data", "plot"), plot_type="boxplot",
                           seed=42){
   if(!is.null(seed)) set.seed(seed)
-  df_result <- data.frame()
-  df_thresholds <- data.frame()
   
   i <- 0
   while(i < n_sims){
@@ -126,39 +126,30 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       )
     }
     
-    df_result <- rbind(
-      df_result, 
-      data.frame(
-        n_sim=i, 
-        treat_all=cost_threshold(0),
-        treat_none=cost_threshold(1),
-        cost_effective_cost=cost_threshold(thresholds$pt_cost_effective),
-        youden_cost=cost_threshold(thresholds$pt_youden), 
-        cz_cost=cost_threshold(thresholds$pt_cz), 
-        iu_cost=cost_threshold(thresholds$pt_iu),
-        er_cost=cost_threshold(thresholds$pt_er)
-      )
-    )
-    
-    df_thresholds <- rbind(
-      df_thresholds, 
-      data.frame(
-        n_sim=i, 
-        treat_all=0,
-        treat_none=1,
-        cost_effective_pt=thresholds$pt_cost_effective,
-        youden_pt=thresholds$pt_youden, 
-        cz_pt=thresholds$pt_cz,
-        iu_pt=thresholds$pt_iu,
-        er_pt=thresholds$pt_er
-      )
-    )
+    results_i <-
+      unlist(thresholds) %>%
+      map_dbl(cost_threshold) %>%
+      t()
+    thresholds_i <- unlist(thresholds)
+    if(i==1){
+      df_result <- results_i
+      df_thresholds <- thresholds_i
+    } else {
+      df_result <- rbind(df_result, results_i)
+      df_thresholds <- rbind(df_thresholds, thresholds_i)
+    }
   }
-  return(df_result)
+  df_result <- as.data.frame.matrix(df_result)
+  df_thresholds <- as.data.frame.matrix(df_thresholds)
+  rownames(df_thresholds) <- NULL
+  
+  df_result <- add_column(df_result, n_sim=1:nrow(df_result), .before=T)
+  df_thresholds <- add_column(df_thresholds, n_sim=1:nrow(df_thresholds), .before=T)
+  
   pts <- round(colMeans(df_thresholds)[-1], 3)
   df_plot <- df_result
   names(df_plot)[-1] <- method_levels <- paste0(names(df_plot)[-1], "(", pts, ")")
-  
+  # return(df_plot)
   if(plot_type=="boxplot"){
     p <- 
       df_plot %>%
@@ -229,13 +220,13 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   }
 }
 
-do_simulation(
-  sample_size=500, n_sims=50, n_valid=500, sim_auc=0.65, event_rate=0.03,
+# t1 <- Sys.time()
+test_run <- do_simulation(
+  sample_size=500, n_sims=20, n_valid=500, sim_auc=0.99, event_rate=0.03,
   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "point"
 )
+test_run
 
-# p_list <- lapply(c(0.03, 0.1, 0.5, 0.9, 0.97), function(x)do_simulation(sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.65, event_rate=x, fx_costs=get_costs, get_what="plot"))
-# p_list
 ```
 
 ## search through a grid of combinations of AUC and event rates to see how this influences the differences between probability threshold methods. The same costs were used in all simulations (distributions at top of document) and are resampled separately for training and validation.
@@ -307,19 +298,6 @@ cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
 # cowplot::plot_grid(plotlist=out, ncol=length(unique(g$sim_auc)))
 ```
 
-# {cutpointr} offers a function `total_utility()` which is very similar to our proposed method. 
-If we highjack it a bit as I do below, then it offers several optimisation methods to find the maximum for our given function.  I pass fx_total_nmb() and give it the same arguments as cutpointr::total_utility() so that it works the way as our existing approach does. They both find very similar cutpoints using the same data and nmb_vector.
-```{r}
-library(cutpointr)
-fx_total_nmb <- function(tn, tp, fn, fp, utility_tp, utility_tn, cost_fp, cost_fn, ...){
-  tn*utility_tn + tp*utility_tp + fn*cost_fn + fp*cost_fp
-}
-
-cutpointr(data=x, x=predicted, class=actual, method=maximize_metric, metric=fx_total_nmb, utility_tp=nmb_vec["TP"], utility_tn=nmb_vec["TN"], cost_fp=nmb_vec["FP"], cost_fn=nmb_vec["FN"])[['optimal_cutpoint']]
-
-get_thresholds(x$predicted, x$actual, costs=nmb_vec)$pt_cost_effective
-
-```
 
 
 #### everything below here are (unsuccessful) attempts to optimise code so that passing new functions to get probability thresholds is easier. 
