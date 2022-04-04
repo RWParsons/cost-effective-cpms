@@ -38,42 +38,132 @@ versus costs-based selection. (Hospital falls as a use case.)
     taken
 6.  ???
 
-### Define costs
+### get costs/effectiveness from papers
 
 ``` r
-# get_costs <- function(){
-#   treatment_effect <- rbeta(1, 111.111, 1000)
-#   QALYs_event <- rbeta(1, 10/3, 30)
-#   treatment_cost <- rgamma(1, 250)
-#   wtp <- 28000
-#   
-#   c(
-#     "TN"=0, 
-#     "FN"=QALYs_event*wtp, 
-#     "TP"=QALYs_event*(1-treatment_effect)*wtp + treatment_cost, 
-#     "FP"=treatment_cost
-#   )
-# }
-# get_costs()
+# estimate costs of falls from Barker et al. MJA
+# https://www.mja.com.au/journal/2015/203/9/extra-resource-burden-hospital-falls-cost-falls-study
+mean_cost <- 6669
+ul <- 9450
+desired_se <- (ul-mean_cost)/1.96
 
+get_beta <- function(a, mean) {
+  a/mean
+}
+
+get_var <- function(a, b) {
+  a/(b^2)
+}
+
+get_se <- function(alpha){
+  # use alpha as input, calculate the optimum beta given desired mean_cost
+  beta <- get_beta(alpha, mean_cost)
+  
+  # estimate the variance of the the gamma distribution given alpha and beta
+  est_var <- get_var(alpha, beta)
+  
+  # return the estimate se of distribution
+  sqrt(est_var)
+}
+
+test_sequence <- seq(20, 50, 0.01) # a sequence of alphas to use
+estimated_se <- map_dbl(test_sequence, get_se)
+
+df_parameters_and_distances <-
+  data.frame(
+  alpha=test_sequence,
+  beta=get_beta(test_sequence, mean_cost),
+  se=estimated_se
+) %>%
+  mutate(dist=abs(se-desired_se)) %>%
+  arrange(dist)
+
+# select the gamma parameters that provide the closest similarity to the reported standard error (and mean)
+rgamma(n=10000,df_parameters_and_distances$alpha[1], df_parameters_and_distances$beta[1]) %>% 
+  density() %>% 
+  plot()
+```
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
+
+``` r
+# estimate effectiveness of intervention from Haines et al. (2010) Archives of Internal Medicine
+# https://sci-hub.hkvisa.net/10.1001/archinternmed.2010.444
+
+mean_eff <- 0.43
+ci95 <- c(0.24, 0.78)
+log(mean_eff)
+```
+
+    ## [1] -0.8439701
+
+``` r
+log(ci95)
+```
+
+    ## [1] -1.4271164 -0.2484614
+
+``` r
+log_hr <- log(mean_eff)
+log_hr_se <- (log(ci95[2]) - log(mean_eff))/1.96
+
+rnorm(1000, mean=log_hr, sd=log_hr_se) %>%
+  exp() %>%
+  density() %>% 
+  plot()
+```
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+
+``` r
+quantile(rnorm(1000, mean=log_hr, sd=log_hr_se), probs=c(0.025, 0.975))
+```
+
+    ##       2.5%      97.5% 
+    ## -1.4744741 -0.2808307
+
+``` r
+log(ci95)
+```
+
+    ## [1] -1.4271164 -0.2484614
+
+``` r
 get_nmb <- function(){
-  treatment_effect <- rbeta(1, 111.111, 1000) #QALY increment from treatment
-  QALYs_event <- -rbeta(1, 10/3, 30) #QALY decrement from event
-  treatment_cost <- rgamma(1, 100)
-  wtp <- 28000
+  # treatment_effect <- rbeta(1, 111.111, 1000) #QALY increment from treatment
+  # QALYs_event <- -rbeta(1, 10/3, 30) #QALY decrement from event
+  # treatment_cost <- rgamma(1, 100)
+  # wtp <- 28000
+  
+  # c(
+  #   "TN"=0,
+  #   "FN"=QALYs_event*wtp,
+  #   "TP"=QALYs_event*(1-treatment_effect)*wtp - treatment_cost,
+  #   "FP"=-treatment_cost
+  # )
+  
+  
+  # treatment_effect taken from: Haines et al. (2010) Archives of Internal Medicine
+  treatment_effect <- exp(rnorm(1, mean=-0.8439701, sd=0.303831))
+  
+  # taken from abstract of Haines (2010), BMC Medicine
+  treatment_cost <- 294 
+  
+  # taken from Morello et al (2015). MJA
+  falls_cost <- rgamma(1, 22.09, 0.003312341)
   
   c(
     "TN"=0,
-    "FN"=QALYs_event*wtp,
-    "TP"=QALYs_event*(1-treatment_effect)*wtp - treatment_cost,
+    "FN"=-falls_cost,
+    "TP"=-falls_cost*(1-treatment_effect) - treatment_cost,
     "FP"=-treatment_cost
   )
 }
 get_nmb()
 ```
 
-    ##         TN         FN         TP         FP 
-    ##     0.0000 -3504.4305 -3279.7998  -105.9129
+    ##        TN        FN        TP        FP 
+    ##     0.000 -6303.138 -2822.947  -294.000
 
 ### Run simulation
 
@@ -231,7 +321,8 @@ cl <- parallelly::autoStopCluster(cl)
 
 g <- expand.grid(
   sim_auc=c(0.65, 0.75, 0.85, 0.95),
-  event_rate=c(0.01, 0.03, 0.1, 0.3, 0.7, 0.9)
+  # event_rate=c(0.01, 0.03, 0.1, 0.3, 0.7, 0.9)
+  event_rate=c(0.01, 0.025, 0.05, 0.075, 0.1)
 )
 
 clusterExport(cl, {
@@ -258,24 +349,22 @@ ll1 <- parallel::parLapply(
   )
 )
 
-ll2 <- parallel::parLapply(
-  cl,
-  1:nrow(g),
-  function(i) do_simulation(
-    sample_size=500, n_sims=100, n_valid=1000,
-    sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    fx_costs=get_nmb, get_what="plot", resample_values=FALSE,
-    plot_type="point"
-  )
-)
+# ll2 <- parallel::parLapply(
+#   cl,
+#   1:nrow(g),
+#   function(i) do_simulation(
+#     sample_size=500, n_sims=100, n_valid=1000,
+#     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
+#     fx_costs=get_nmb, get_what="plot", resample_values=FALSE,
+#     plot_type="point"
+#   )
+# )
 
 cowplot::plot_grid(plotlist=ll1, ncol=length(unique(g$sim_auc)))
 ```
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+![](experiment_1_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
 ``` r
-cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
+# cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
 ```
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
