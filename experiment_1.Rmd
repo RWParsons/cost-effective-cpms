@@ -90,10 +90,37 @@ df_parameters_and_distances <-
   mutate(dist=abs(se-desired_se)) %>%
   arrange(dist)
 
+
+s <- rgamma(n=1000000,df_parameters_and_distances$alpha[1], df_parameters_and_distances$beta[1])
+
 # select the gamma parameters that provide the closest similarity to the reported standard error (and mean)
-rgamma(n=10000,df_parameters_and_distances$alpha[1], df_parameters_and_distances$beta[1]) %>% 
+s %>% 
   density() %>% 
   plot()
+
+library(fitdistrplus)
+x <- rnorm(n=1000000, mean_cost, desired_se)
+x <- x[x>0]
+fit <- fitdist(x, "gamma", method="mme")
+
+fit$estimate
+s2 <- rgamma(n=1000000,fit$estimate['shape'], fit$estimate['rate'])
+s2 %>% 
+  density() %>% 
+  plot()
+
+
+cat("desired mean and se:\n")
+mean_cost
+desired_se
+
+cat("fit dist:\n")
+mean(s2)
+sd(s2)
+
+cat("my method:\n")
+mean(s)
+sd(s)
 
 ```
 
