@@ -57,7 +57,7 @@ get_beta(alpha=10, p=0.2)
 # the same mean and standard error.
 mean_cost <- 6669
 ul <- 9450
-desired_se <- (ul-mean_cost)/1.96
+desired_se <- ((ul-mean_cost)/1.96)
 
 get_beta <- function(a, mean) {
   a/mean
@@ -166,10 +166,10 @@ get_nmb <- function(){
   treatment_effect <- exp(rnorm(1, mean=-0.8439701, sd=0.303831))
   
   # taken from abstract of Haines (2010), BMC Medicine
-  treatment_cost <- 294 
+  treatment_cost <- 294*1.03^(2022-2013)
   
   # taken from Morello et al (2015). MJA
-  falls_cost <- rgamma(1, 22.09, 0.003312341)
+  falls_cost <- (rgamma(1, 22.09, 0.003312341))*(1.03^(2022-2015))
   
   c(
     "TN"=0,
@@ -180,7 +180,31 @@ get_nmb <- function(){
 }
 get_nmb()
 
-
+get_nmb_ICU <- function(){
+# Note all costs are already adjusted to $AUD 2022
+  # WTP from Edney et al (2018), Pharmacoeconomics
+  WTP <- 28033
+  
+  # treatment_effect taken from de Vos et al (2022), Value in Health
+  eff_disch <- rbeta(1, 14.29780, 19.74273)
+  
+  # ICU occupancy cost taken from Hicks et al (2019), MJA
+  ICU_cost <- rgamma(1, 12.427458201, 0.002603026)
+  
+  # Opportunity cost taken from Page et al (2017), BMC HSR
+  ICU_opp_cost <- 505
+  
+  # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
+  ICU_readmit <- rnorm(1, 5124, 8352)
+  
+  c(
+    "TN2"=eff_disch*WTP,
+    "FN2"=eff_disch*WTP - ICU_readmit,
+    "TP2"=-ICU_cost,
+    "FP2"=-ICU_cost + ICU_opp_cost
+  )
+}
+get_nmb_ICU()
 
 ```
 

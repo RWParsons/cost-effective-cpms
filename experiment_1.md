@@ -1,6 +1,6 @@
 Experiment 1
 ================
-04 April, 2022
+13 April, 2022
 
 Question: What are the differences in NMB between models where the
 Probability threshold was based on the currently available methods
@@ -9,27 +9,27 @@ versus costs-based selection. (Hospital falls as a use case.)
 1.  Define costs of a TP, TN, FP, FN of falls classification (option to
     move this into the loop where costs are sampled from a distributions
     to account for uncertainty in their estimates in the literature)
-    -   FP have cost of applying intervention
-    -   FN have cost of patient fall
-    -   TP have cost of intervention + cost of fall\*(1-effectiveness of
+      - FP have cost of applying intervention
+      - FN have cost of patient fall
+      - TP have cost of intervention + cost of fall\*(1-effectiveness of
         intervention on rate of falls)
-    -   TN are cost $0
-2.  Select appropriate AUC (\~0.75?) and prevalence (\~3% ) for
-    comparable clinical prediction model for falls.
+      - TN are cost $0
+2.  Select appropriate ranges for model AUC (\~0.75?) and prevalence
+    (\~3%) for comparable clinical prediction model for falls.
 3.  For sample sizes (N) in \[100, 500, 1000\]: (repeat 500 times at
     each sample size)
-    -   Get training data by sampling observed predictor values and
+      - Get training data by sampling observed predictor values and
         outcome by transforming AUC into Cohens’ D and sampling from two
         normal distributions, the first (negative events) with mean=0
         and the second (positive events) with mean=Cohens’D. (Both with
         sd=1.)
-    -   Fit a logistic regression model using this sampled data.
-    -   Fit predicted probabilities to the training data and use these
+      - Fit a logistic regression model using this sampled data.
+      - Fit predicted probabilities to the training data and use these
         to obtain probability thresholds using each method.
-    -   Get validation data using the same approach but with n=1000.
-    -   Use the previously fit model to estimate probabilities for
+      - Get validation data using the same approach but with n=1000.
+      - Use the previously fit model to estimate probabilities for
         validation data.
-    -   Evaluate the thresholds selected using the training data on the
+      - Evaluate the thresholds selected using the training data on the
         validation data, in terms of mean cost per patient.
 4.  Measure differences in NMB on validation sample dependent on use of
     currently available methods and cost-based approach to determine
@@ -41,11 +41,15 @@ versus costs-based selection. (Hospital falls as a use case.)
 ### get costs/effectiveness from papers
 
 ``` r
-# estimate costs of falls from Barker et al. MJA
+# estimate costs of falls from Morello et al. MJA
 # https://www.mja.com.au/journal/2015/203/9/extra-resource-burden-hospital-falls-cost-falls-study
+
+# the confidence interval from the study were symmetric around the estimate.
+# The code below is used to estimate which gamma distribution parameters would represent costs with 
+# the same mean and standard error.
 mean_cost <- 6669
 ul <- 9450
-desired_se <- (ul-mean_cost)/1.96
+desired_se <- ((ul-mean_cost)/1.96)
 
 get_beta <- function(a, mean) {
   a/mean
@@ -78,13 +82,118 @@ df_parameters_and_distances <-
   mutate(dist=abs(se-desired_se)) %>%
   arrange(dist)
 
+
+s <- rgamma(n=1000000,df_parameters_and_distances$alpha[1], df_parameters_and_distances$beta[1])
+
 # select the gamma parameters that provide the closest similarity to the reported standard error (and mean)
-rgamma(n=10000,df_parameters_and_distances$alpha[1], df_parameters_and_distances$beta[1]) %>% 
+s %>% 
   density() %>% 
   plot()
 ```
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
+
+``` r
+library(fitdistrplus)
+```
+
+    ## Loading required package: MASS
+
+    ## 
+    ## Attaching package: 'MASS'
+
+    ## The following object is masked from 'package:dplyr':
+    ## 
+    ##     select
+
+    ## Loading required package: survival
+
+``` r
+x <- rnorm(n=1000000, mean_cost, desired_se)
+x <- x[x>0]
+fit <- fitdist(x, "gamma", method="mme")
+```
+
+    ## $start.arg
+    ## $start.arg$shape
+    ## [1] 22.09866
+    ## 
+    ## $start.arg$rate
+    ## [1] 0.003313308
+    ## 
+    ## 
+    ## $fix.arg
+    ## NULL
+
+``` r
+fit$estimate
+```
+
+    ##        shape         rate 
+    ## 22.098662528  0.003313308
+
+``` r
+s2 <- rgamma(n=1000000,fit$estimate['shape'], fit$estimate['rate'])
+s2 %>% 
+  density() %>% 
+  plot()
+```
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-2-2.png)<!-- -->
+
+``` r
+cat("desired mean and se:\n")
+```
+
+    ## desired mean and se:
+
+``` r
+mean_cost
+```
+
+    ## [1] 6669
+
+``` r
+desired_se
+```
+
+    ## [1] 1418.878
+
+``` r
+cat("fit dist:\n")
+```
+
+    ## fit dist:
+
+``` r
+mean(s2)
+```
+
+    ## [1] 6669.248
+
+``` r
+sd(s2)
+```
+
+    ## [1] 1419.491
+
+``` r
+cat("my method:\n")
+```
+
+    ## my method:
+
+``` r
+mean(s)
+```
+
+    ## [1] 6669.969
+
+``` r
+sd(s)
+```
+
+    ## [1] 1421.549
 
 ``` r
 # estimate effectiveness of intervention from Haines et al. (2010) Archives of Internal Medicine
@@ -120,7 +229,7 @@ quantile(rnorm(1000, mean=log_hr, sd=log_hr_se), probs=c(0.025, 0.975))
 ```
 
     ##       2.5%      97.5% 
-    ## -1.4744741 -0.2808307
+    ## -1.4268581 -0.2617282
 
 ``` r
 log(ci95)
@@ -147,10 +256,10 @@ get_nmb <- function(){
   treatment_effect <- exp(rnorm(1, mean=-0.8439701, sd=0.303831))
   
   # taken from abstract of Haines (2010), BMC Medicine
-  treatment_cost <- 294 
+  treatment_cost <- 294*1.03^(2022-2013)
   
   # taken from Morello et al (2015). MJA
-  falls_cost <- rgamma(1, 22.09, 0.003312341)
+  falls_cost <- (rgamma(1, 22.09, 0.003312341))*(1.03^(2022-2015))
   
   c(
     "TN"=0,
@@ -162,8 +271,39 @@ get_nmb <- function(){
 get_nmb()
 ```
 
-    ##        TN        FN        TP        FP 
-    ##     0.000 -6303.138 -2822.947  -294.000
+    ##         TN         FN         TP         FP 
+    ##     0.0000 -7176.5781 -2513.9224  -383.6033
+
+``` r
+get_nmb_ICU <- function(){
+# Note all costs are already adjusted to $AUD 2022
+  # WTP from Edney et al (2018), Pharmacoeconomics
+  WTP <- 28033
+  
+  # treatment_effect taken from de Vos et al (2022), Value in Health
+  eff_disch <- rbeta(1, 14.29780, 19.74273)
+  
+  # ICU occupancy cost taken from Hicks et al (2019), MJA
+  ICU_cost <- rgamma(1, 12.427458201, 0.002603026)
+  
+  # Opportunity cost taken from Page et al (2017), BMC HSR
+  ICU_opp_cost <- 505
+  
+  # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
+  ICU_readmit <- rnorm(1, 5124, 8352)
+  
+  c(
+    "TN2"=eff_disch*WTP,
+    "FN2"=eff_disch*WTP - ICU_readmit,
+    "TP2"=-ICU_cost,
+    "FP2"=-ICU_cost + ICU_opp_cost
+  )
+}
+get_nmb_ICU()
+```
+
+    ##       TN2       FN2       TP2       FP2 
+    ##  9458.183 11524.556 -5270.399 -4765.399
 
 ### Run simulation
 
