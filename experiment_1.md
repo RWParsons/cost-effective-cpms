@@ -1,6 +1,6 @@
 Experiment 1
 ================
-13 April, 2022
+14 April, 2022
 
 Question: What are the differences in NMB between models where the
 Probability threshold was based on the currently available methods
@@ -238,6 +238,85 @@ log(ci95)
     ## [1] -1.4271164 -0.2484614
 
 ``` r
+# Estimate impact of falls on health utility from Latimer et al (2013) Age and Ageing
+# https://academic.oup.com/ageing/article/42/5/641/18607?login=true
+
+noinj <- rep(0.02, 40)
+minorinj <- rep(0.04, 31)
+moderateinj <- rep(0.06, 18)
+majorinj <- rep(0.11, 9)
+fallers <- c(noinj, minorinj, moderateinj, majorinj)
+
+library(fitdistrplus)
+falldec <- fitdist(fallers, "gamma")
+```
+
+    ## $start.arg
+    ## $start.arg$shape
+    ## [1] 2.57529
+    ## 
+    ## $start.arg$rate
+    ## [1] 61.40594
+    ## 
+    ## 
+    ## $fix.arg
+    ## NULL
+
+``` r
+# Estimate additional costs of ICU readmission from Tong et al (2021) World J Surg
+# https://pubmed.ncbi.nlm.nih.gov/33788015/
+
+readmit <- rnorm(1000000, 19850, 7595)+50000
+no_readmit <- rnorm(1000000, 14916, 3483)+50000
+library(fitdistrplus)
+d_readmit <- fitdist(readmit, "gamma", "mme")
+```
+
+    ## $start.arg
+    ## $start.arg$shape
+    ## [1] 84.61911
+    ## 
+    ## $start.arg$rate
+    ## [1] 0.0012115
+    ## 
+    ## 
+    ## $fix.arg
+    ## NULL
+
+``` r
+d_no_readmit <- fitdist(no_readmit, "gamma", "mme")
+```
+
+    ## $start.arg
+    ## $start.arg$shape
+    ## [1] 346.9641
+    ## 
+    ## $start.arg$rate
+    ## [1] 0.00534438
+    ## 
+    ## 
+    ## $fix.arg
+    ## NULL
+
+``` r
+readmit_dist <- rgamma(1000000, d_readmit$estimate['shape'], d_readmit$estimate['rate'])-50000
+no_readmit_dist <- rgamma(1000000, d_no_readmit$estimate['shape'], d_no_readmit$estimate['rate'])-50000
+d_diff <- readmit_dist - no_readmit_dist
+diff_dist <- fitdist(d_diff, "norm")
+```
+
+    ## $start.arg
+    ## $start.arg$mean
+    ## [1] 4920.067
+    ## 
+    ## $start.arg$sd
+    ## [1] 8364.082
+    ## 
+    ## 
+    ## $fix.arg
+    ## NULL
+
+``` r
 get_nmb <- function(){
   # treatment_effect <- rbeta(1, 111.111, 1000) #QALY increment from treatment
   # QALYs_event <- -rbeta(1, 10/3, 30) #QALY decrement from event
@@ -251,6 +330,8 @@ get_nmb <- function(){
   #   "FP"=-treatment_cost
   # )
   
+  # WTP from Edney et al (2018), Pharmacoeconomics
+  WTP <- 28033
   
   # treatment_effect taken from: Haines et al. (2010) Archives of Internal Medicine
   treatment_effect <- exp(rnorm(1, mean=-0.8439701, sd=0.303831))
@@ -261,10 +342,13 @@ get_nmb <- function(){
   # taken from Morello et al (2015). MJA
   falls_cost <- (rgamma(1, 22.09, 0.003312341))*(1.03^(2022-2015))
   
+  #taken from Latimer et al (2013) Age and Ageing
+  fall_eff <- rgamma(1, 2.57529, 61.40594)*0.5 #6-month follow-up <- QALY = 0.5*utility decrement
+  
   c(
     "TN"=0,
-    "FN"=-falls_cost,
-    "TP"=-falls_cost*(1-treatment_effect) - treatment_cost,
+    "FN"=-falls_cost - fall_eff*WTP,
+    "TP"=-falls_cost*(1-treatment_effect) - treatment_cost - fall_eff*WTP,
     "FP"=-treatment_cost
   )
 }
@@ -272,14 +356,14 @@ get_nmb()
 ```
 
     ##         TN         FN         TP         FP 
-    ##     0.0000 -7176.5781 -2513.9224  -383.6033
+    ##     0.0000 -5321.4913 -3699.0858  -383.6033
 
 ``` r
 get_nmb_ICU <- function(){
 # Note all costs are already adjusted to $AUD 2022
-  # WTP from Edney et al (2018), Pharmacoeconomics
-  WTP <- 28033
   
+  WTP <- 28033
+
   # treatment_effect taken from de Vos et al (2022), Value in Health
   eff_disch <- rbeta(1, 14.29780, 19.74273)
   
@@ -290,7 +374,7 @@ get_nmb_ICU <- function(){
   ICU_opp_cost <- 505
   
   # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
-  ICU_readmit <- rnorm(1, 5124, 8352)
+  ICU_readmit <- rnorm(1, 4917, 8357)
   
   c(
     "TN2"=eff_disch*WTP,
@@ -303,7 +387,7 @@ get_nmb_ICU()
 ```
 
     ##       TN2       FN2       TP2       FP2 
-    ##  9458.183 11524.556 -5270.399 -4765.399
+    ## 13226.286 -2414.599 -3074.870 -2569.870
 
 ### Run simulation
 
@@ -503,7 +587,7 @@ ll1 <- parallel::parLapply(
 cowplot::plot_grid(plotlist=ll1, ncol=length(unique(g$sim_auc)))
 ```
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+![](experiment_1_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
 
 ``` r
 # cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))

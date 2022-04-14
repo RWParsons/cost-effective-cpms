@@ -147,6 +147,35 @@ log(ci95)
 ```
 
 ```{r}
+# Estimate impact of falls on health utility from Latimer et al (2013) Age and Ageing
+# https://academic.oup.com/ageing/article/42/5/641/18607?login=true
+
+noinj <- rep(0.02, 40)
+minorinj <- rep(0.04, 31)
+moderateinj <- rep(0.06, 18)
+majorinj <- rep(0.11, 9)
+fallers <- c(noinj, minorinj, moderateinj, majorinj)
+
+library(fitdistrplus)
+falldec <- fitdist(fallers, "gamma")
+```
+
+```{r}
+# Estimate additional costs of ICU readmission from Tong et al (2021) World J Surg
+# https://pubmed.ncbi.nlm.nih.gov/33788015/
+
+readmit <- rnorm(1000000, 19850, 7595)+50000
+no_readmit <- rnorm(1000000, 14916, 3483)+50000
+library(fitdistrplus)
+d_readmit <- fitdist(readmit, "gamma", "mme")
+d_no_readmit <- fitdist(no_readmit, "gamma", "mme")
+readmit_dist <- rgamma(1000000, d_readmit$estimate['shape'], d_readmit$estimate['rate'])-50000
+no_readmit_dist <- rgamma(1000000, d_no_readmit$estimate['shape'], d_no_readmit$estimate['rate'])-50000
+d_diff <- readmit_dist - no_readmit_dist
+diff_dist <- fitdist(d_diff, "norm")
+```
+
+```{r}
 
 get_nmb <- function(){
   # treatment_effect <- rbeta(1, 111.111, 1000) #QALY increment from treatment
@@ -161,6 +190,8 @@ get_nmb <- function(){
   #   "FP"=-treatment_cost
   # )
   
+  # WTP from Edney et al (2018), Pharmacoeconomics
+  WTP <- 28033
   
   # treatment_effect taken from: Haines et al. (2010) Archives of Internal Medicine
   treatment_effect <- exp(rnorm(1, mean=-0.8439701, sd=0.303831))
@@ -171,10 +202,13 @@ get_nmb <- function(){
   # taken from Morello et al (2015). MJA
   falls_cost <- (rgamma(1, 22.09, 0.003312341))*(1.03^(2022-2015))
   
+  #taken from Latimer et al (2013) Age and Ageing
+  fall_eff <- rgamma(1, 2.57529, 61.40594)*0.5 #6-month follow-up <- QALY = 0.5*utility decrement
+  
   c(
     "TN"=0,
-    "FN"=-falls_cost,
-    "TP"=-falls_cost*(1-treatment_effect) - treatment_cost,
+    "FN"=-falls_cost - fall_eff*WTP,
+    "TP"=-falls_cost*(1-treatment_effect) - treatment_cost - fall_eff*WTP,
     "FP"=-treatment_cost
   )
 }
@@ -182,9 +216,9 @@ get_nmb()
 
 get_nmb_ICU <- function(){
 # Note all costs are already adjusted to $AUD 2022
-  # WTP from Edney et al (2018), Pharmacoeconomics
-  WTP <- 28033
   
+  WTP <- 28033
+
   # treatment_effect taken from de Vos et al (2022), Value in Health
   eff_disch <- rbeta(1, 14.29780, 19.74273)
   
@@ -195,7 +229,7 @@ get_nmb_ICU <- function(){
   ICU_opp_cost <- 505
   
   # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
-  ICU_readmit <- rnorm(1, 5124, 8352)
+  ICU_readmit <- rnorm(1, 4917, 8357)
   
   c(
     "TN2"=eff_disch*WTP,
