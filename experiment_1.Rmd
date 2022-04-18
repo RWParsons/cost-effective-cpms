@@ -10,6 +10,7 @@ set.seed(42)
 library(tidyverse)
 library(data.table)
 library(cutpointr)
+source("src/inputs.R")
 source("src/utils.R")
 source("src/cutpoint_methods.R")
 ```
@@ -34,122 +35,10 @@ Question: What are the differences in NMB between models where the Probability t
 5. Observe whether this relationship is dependent on the sample size taken
 6. ???
 
-```{r, include=FALSE, results='hide'}
-# space for looking at distributions to estimate what is reasonable to use in get_nmb()
-
-p = seq(0,1, length=100)
-plot(p, dbeta(p, 10, 40), type='l')
-
-get_beta(alpha=10, p=0.2)
-
-(10/3)/(30+(10/3))
-```
-
-
-### get costs/effectiveness from papers
-```{r}
-
-# estimate costs of falls from Morello et al. MJA
-# https://www.mja.com.au/journal/2015/203/9/extra-resource-burden-hospital-falls-cost-falls-study
-
-# the confidence interval from the study were symmetric around the estimate.
-# The code below is used to estimate which gamma distribution parameters would represent costs with 
-# the same mean and standard error.
-mean_cost <- 6669
-ul <- 9450
-desired_se <- ((ul-mean_cost)/1.96)
-
-get_beta <- function(a, mean) {
-  a/mean
-}
-
-get_var <- function(a, b) {
-  a/(b^2)
-}
-
-get_se <- function(alpha){
-  # use alpha as input, calculate the optimum beta given desired mean_cost
-  beta <- get_beta(alpha, mean_cost)
-  
-  # estimate the variance of the the gamma distribution given alpha and beta
-  est_var <- get_var(alpha, beta)
-  
-  # return the estimate se of distribution
-  sqrt(est_var)
-}
-
-test_sequence <- seq(20, 50, 0.01) # a sequence of alphas to use
-estimated_se <- map_dbl(test_sequence, get_se)
-
-df_parameters_and_distances <-
-  data.frame(
-  alpha=test_sequence,
-  beta=get_beta(test_sequence, mean_cost),
-  se=estimated_se
-) %>%
-  mutate(dist=abs(se-desired_se)) %>%
-  arrange(dist)
-
-
-s <- rgamma(n=1000000,df_parameters_and_distances$alpha[1], df_parameters_and_distances$beta[1])
-
-# select the gamma parameters that provide the closest similarity to the reported standard error (and mean)
-s %>% 
-  density() %>% 
-  plot()
-
-library(fitdistrplus)
-x <- rnorm(n=1000000, mean_cost, desired_se)
-x <- x[x>0]
-fit <- fitdist(x, "gamma", method="mme")
-
-fit$estimate
-s2 <- rgamma(n=1000000,fit$estimate['shape'], fit$estimate['rate'])
-s2 %>% 
-  density() %>% 
-  plot()
-
-
-cat("desired mean and se:\n")
-mean_cost
-desired_se
-
-cat("fit dist:\n")
-mean(s2)
-sd(s2)
-
-cat("my method:\n")
-mean(s)
-sd(s)
-
-```
-
-```{r}
-
-# estimate effectiveness of intervention from Haines et al. (2010) Archives of Internal Medicine
-# https://sci-hub.hkvisa.net/10.1001/archinternmed.2010.444
-
-mean_eff <- 0.43
-ci95 <- c(0.24, 0.78)
-log(mean_eff)
-log(ci95)
-
-log_hr <- log(mean_eff)
-log_hr_se <- (log(ci95[2]) - log(mean_eff))/1.96
-
-rnorm(1000, mean=log_hr, sd=log_hr_se) %>%
-  exp() %>%
-  density() %>% 
-  plot()
-
-quantile(rnorm(1000, mean=log_hr, sd=log_hr_se), probs=c(0.025, 0.975))
-log(ci95)
-```
 
 ```{r}
 # Estimate impact of falls on health utility from Latimer et al (2013) Age and Ageing
 # https://academic.oup.com/ageing/article/42/5/641/18607?login=true
-
 noinj <- rep(0.02, 40)
 minorinj <- rep(0.04, 31)
 moderateinj <- rep(0.06, 18)
@@ -178,29 +67,27 @@ diff_dist <- fitdist(d_diff, "norm")
 ```{r}
 
 get_nmb <- function(){
-  # treatment_effect <- rbeta(1, 111.111, 1000) #QALY increment from treatment
-  # QALYs_event <- -rbeta(1, 10/3, 30) #QALY decrement from event
-  # treatment_cost <- rgamma(1, 100)
-  # wtp <- 28000
-  
-  # c(
-  #   "TN"=0,
-  #   "FN"=QALYs_event*wtp,
-  #   "TP"=QALYs_event*(1-treatment_effect)*wtp - treatment_cost,
-  #   "FP"=-treatment_cost
-  # )
-  
   # WTP from Edney et al (2018), Pharmacoeconomics
-  WTP <- 28033
+  WTP <- params$global$WTP
   
   # treatment_effect taken from: Haines et al. (2010) Archives of Internal Medicine
-  treatment_effect <- exp(rnorm(1, mean=-0.8439701, sd=0.303831))
+  treatment_effect <- exp(rnorm(
+    1, 
+    mean=params$falls$treatment_log_hazard$mean,
+    sd=params$falls$treatment_log_hazard$sd
+  ))
   
   # taken from abstract of Haines (2010), BMC Medicine
-  treatment_cost <- 294*1.03^(2022-2013)
+  treatment_cost <- params$falls$treatment_cost
   
   # taken from Morello et al (2015). MJA
-  falls_cost <- (rgamma(1, 22.09, 0.003312341))*(1.03^(2022-2015))
+  
+  falls_cost <- 
+    rgamma(
+      1, 
+      params$falls$falls_cost$shape, 
+      params$falls$falls_cost$rate
+    ) * params$falls$falls_cost$multiplier
   
   #taken from Latimer et al (2013) Age and Ageing
   fall_eff <- rbeta(1, 2.425347, 55.40531)*0.5 #6-month follow-up <- QALY = 0.5*utility decrement
@@ -214,6 +101,11 @@ get_nmb <- function(){
 }
 get_nmb()
 
+
+```
+
+
+```{r}
 get_nmb_ICU <- function(){
 # Note all costs are already adjusted to $AUD 2022
   
@@ -232,10 +124,10 @@ get_nmb_ICU <- function(){
   ICU_readmit <- rnorm(1, 4917, 8357)
   
   c(
-    "TN2"=eff_disch*WTP,
-    "FN2"=eff_disch*WTP - ICU_readmit,
-    "TP2"=-ICU_cost,
-    "FP2"=-ICU_cost + ICU_opp_cost
+    "TN"=eff_disch*WTP,
+    "FN"=eff_disch*WTP - ICU_readmit,
+    "TP"=-ICU_cost,
+    "FP"=-ICU_cost + ICU_opp_cost
   )
 }
 get_nmb_ICU()
@@ -409,6 +301,7 @@ invisible(clusterEvalQ(cl, {
   library(tidyverse)
   library(data.table)
   library(cutpointr)
+  source("src/inputs.R")
   source("src/utils.R")
   source("src/cutpoint_methods.R")
 }))
