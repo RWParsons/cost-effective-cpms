@@ -157,7 +157,7 @@ majorinj <- rep(0.11, 9)
 fallers <- c(noinj, minorinj, moderateinj, majorinj)
 
 library(fitdistrplus)
-falldec <- fitdist(fallers, "gamma")
+falldec <- fitdist(fallers, "beta")
 ```
 
 ```{r}
@@ -203,7 +203,7 @@ get_nmb <- function(){
   falls_cost <- (rgamma(1, 22.09, 0.003312341))*(1.03^(2022-2015))
   
   #taken from Latimer et al (2013) Age and Ageing
-  fall_eff <- rgamma(1, 2.57529, 61.40594)*0.5 #6-month follow-up <- QALY = 0.5*utility decrement
+  fall_eff <- rbeta(1, 2.425347, 55.40531)*0.5 #6-month follow-up <- QALY = 0.5*utility decrement
   
   c(
     "TN"=0,
