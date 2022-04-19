@@ -9,27 +9,27 @@ versus costs-based selection. (Hospital falls as a use case.)
 1.  Define costs of a TP, TN, FP, FN of falls classification (option to
     move this into the loop where costs are sampled from a distributions
     to account for uncertainty in their estimates in the literature)
-      - FP have cost of applying intervention
-      - FN have cost of patient fall
-      - TP have cost of intervention + cost of fall\*(1-effectiveness of
+    -   FP have cost of applying intervention
+    -   FN have cost of patient fall
+    -   TP have cost of intervention + cost of fall\*(1-effectiveness of
         intervention on rate of falls)
-      - TN are cost $0
+    -   TN are cost $0
 2.  Select appropriate ranges for model AUC (\~0.75?) and prevalence
     (\~3%) for comparable clinical prediction model for falls.
 3.  For sample sizes (N) in \[100, 500, 1000\]: (repeat 500 times at
     each sample size)
-      - Get training data by sampling observed predictor values and
+    -   Get training data by sampling observed predictor values and
         outcome by transforming AUC into Cohens’ D and sampling from two
         normal distributions, the first (negative events) with mean=0
         and the second (positive events) with mean=Cohens’D. (Both with
         sd=1.)
-      - Fit a logistic regression model using this sampled data.
-      - Fit predicted probabilities to the training data and use these
+    -   Fit a logistic regression model using this sampled data.
+    -   Fit predicted probabilities to the training data and use these
         to obtain probability thresholds using each method.
-      - Get validation data using the same approach but with n=1000.
-      - Use the previously fit model to estimate probabilities for
+    -   Get validation data using the same approach but with n=1000.
+    -   Use the previously fit model to estimate probabilities for
         validation data.
-      - Evaluate the thresholds selected using the training data on the
+    -   Evaluate the thresholds selected using the training data on the
         validation data, in terms of mean cost per patient.
 4.  Measure differences in NMB on validation sample dependent on use of
     currently available methods and cost-based approach to determine
@@ -37,8 +37,6 @@ versus costs-based selection. (Hospital falls as a use case.)
 5.  Observe whether this relationship is dependent on the sample size
     taken
 6.  ???
-
-<!-- end list -->
 
 ``` r
 get_nmb <- function(){
@@ -100,7 +98,7 @@ get_nmb_ICU <- function(){
   ICU_cost <- rgamma(
     1, 
     params$icu$icu_cost$shape,
-    params$icu$icu_cost$scale
+    params$icu$icu_cost$rate
   ) * params$icu$icu_cost$multiplier
   
   # Opportunity cost taken from Page et al (2017), BMC HSR
@@ -124,7 +122,7 @@ get_nmb_ICU()
 ```
 
     ##         TN         FN         TP         FP 
-    ##    28.6307 -3650.7631        NaN        NaN
+    ##    28.6307  8234.2848 -4132.5328 -3627.0893
 
 ### Run simulation
 
@@ -287,14 +285,13 @@ g <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g", "get_nmb")
+  c("do_simulation", "g", "get_nmb", "get_nmb_ICU", "params")
 })
 
 invisible(clusterEvalQ(cl, {
   library(tidyverse)
   library(data.table)
   library(cutpointr)
-  source("src/inputs.R")
   source("src/utils.R")
   source("src/cutpoint_methods.R")
 }))
@@ -311,16 +308,16 @@ ll1 <- parallel::parLapply(
   )
 )
 
-# ll2 <- parallel::parLapply(
-#   cl,
-#   1:nrow(g),
-#   function(i) do_simulation(
-#     sample_size=500, n_sims=100, n_valid=1000,
-#     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-#     fx_costs=get_nmb, get_what="plot", resample_values=FALSE,
-#     plot_type="point"
-#   )
-# )
+ll2 <- parallel::parLapply(
+  cl,
+  1:nrow(g),
+  function(i) do_simulation(
+    sample_size=500, n_sims=100, n_valid=1000,
+    sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
+    fx_costs=get_nmb_ICU, get_what="plot", resample_values=FALSE,
+    plot_type="point"
+  )
+)
 
 cowplot::plot_grid(plotlist=ll1, ncol=length(unique(g$sim_auc)))
 ```
@@ -328,5 +325,7 @@ cowplot::plot_grid(plotlist=ll1, ncol=length(unique(g$sim_auc)))
 ![](experiment_1_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
 
 ``` r
-# cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
 ```
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->

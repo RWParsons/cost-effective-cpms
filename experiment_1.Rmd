@@ -304,19 +304,19 @@ ll1 <- parallel::parLapply(
   )
 )
 
-# ll2 <- parallel::parLapply(
-#   cl,
-#   1:nrow(g),
-#   function(i) do_simulation(
-#     sample_size=500, n_sims=100, n_valid=1000,
-#     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-#     fx_costs=get_nmb, get_what="plot", resample_values=FALSE,
-#     plot_type="point"
-#   )
-# )
+ll2 <- parallel::parLapply(
+  cl,
+  1:nrow(g),
+  function(i) do_simulation(
+    sample_size=500, n_sims=100, n_valid=1000,
+    sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
+    fx_costs=get_nmb_ICU, get_what="plot", resample_values=FALSE,
+    plot_type="point"
+  )
+)
 
 cowplot::plot_grid(plotlist=ll1, ncol=length(unique(g$sim_auc)))
 
-# cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
 
 ```
