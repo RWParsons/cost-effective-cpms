@@ -97,7 +97,7 @@ get_nmb_ICU <- function(){
   ICU_cost <- rgamma(
     1, 
     params$icu$icu_cost$shape,
-    params$icu$icu_cost$scale
+    params$icu$icu_cost$rate
   ) * params$icu$icu_cost$multiplier
   
   # Opportunity cost taken from Page et al (2017), BMC HSR
@@ -281,14 +281,13 @@ g <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g", "get_nmb")
+  c("do_simulation", "g", "get_nmb", "get_nmb_ICU", "params")
 })
 
 invisible(clusterEvalQ(cl, {
   library(tidyverse)
   library(data.table)
   library(cutpointr)
-  source("src/inputs.R")
   source("src/utils.R")
   source("src/cutpoint_methods.R")
 }))

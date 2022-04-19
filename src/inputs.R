@@ -80,12 +80,12 @@ icu_params <- c(
 
 # Estimate additional costs of ICU readmission from Tong et al (2021) World J Surg
 # https://pubmed.ncbi.nlm.nih.gov/33788015/
-readmit <- rnorm(1000000, 19850, 7595)+50000 #shift by 50k to make all positive
-no_readmit <- rnorm(1000000, 14916, 3483)+50000
+readmit <- rnorm(n_samples, 19850, 7595)+50000 #shift by 50k to make all positive
+no_readmit <- rnorm(n_samples, 14916, 3483)+50000
 d_readmit <- fitdist(readmit, "gamma", "mme") #Fit a gamma to each
 d_no_readmit <- fitdist(no_readmit, "gamma", "mme")
-readmit_dist <- rgamma(1000000, d_readmit$estimate['shape'], d_readmit$estimate['rate'])-50000 #Sample from new gammas
-no_readmit_dist <- rgamma(1000000, d_no_readmit$estimate['shape'], d_no_readmit$estimate['rate'])-50000
+readmit_dist <- rgamma(n_samples, d_readmit$estimate['shape'], d_readmit$estimate['rate'])-50000 #Sample from new gammas
+no_readmit_dist <- rgamma(n_samples, d_no_readmit$estimate['shape'], d_no_readmit$estimate['rate'])-50000
 d_diff <- readmit_dist - no_readmit_dist #Create distribution of differences (normal)
 diff_dist <- fitdist(d_diff, "norm") #Fit normal distribution
 
@@ -101,7 +101,7 @@ icu_params <- c(
 # Estimate impact of a day on the ward vs ICU from de Vos et al (2022), Value in Health
 # https://www.sciencedirect.com/science/article/abs/pii/S1098301521017423
 
-x <- rnorm(1000000, 0.42, 0.083)
+x <- rnorm(n_samples, 0.42, 0.083)
 fit <- fitdist(x, "beta")
 
 icu_params <- c(
@@ -116,16 +116,18 @@ icu_params <- c(
 # Estimate ICU day cost from Hicks et al (2021), MJA
 # https://www.mja.com.au/journal/2019/211/7/financial-cost-intensive-care-australia-multicentre-registry-study
 
-x <- rnorm(1000000, 4375, 1157)
+x <- rnorm(n_samples, 4375, 1157)
 fit <- fitdist(x[x>0], "gamma")
 
 icu_params <- c(
   icu_params,
   list(icu_cost=list(
     shape=fit$estimate['shape'],
-    scale=fit$estimate['scale'],
+    rate=fit$estimate['rate'],
     multiplier=1.03^(2022-2021)
   ))
 )
 
 params <- list(global=global_params, falls=falls_params, icu=icu_params)
+
+rm(list=setdiff(ls(), "params"))
