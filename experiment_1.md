@@ -1,6 +1,6 @@
 Experiment 1
 ================
-14 April, 2022
+19 April, 2022
 
 Question: What are the differences in NMB between models where the
 Probability threshold was based on the currently available methods
@@ -38,313 +38,39 @@ versus costs-based selection. (Hospital falls as a use case.)
     taken
 6.  ???
 
-### get costs/effectiveness from papers
-
-``` r
-# estimate costs of falls from Morello et al. MJA
-# https://www.mja.com.au/journal/2015/203/9/extra-resource-burden-hospital-falls-cost-falls-study
-
-# the confidence interval from the study were symmetric around the estimate.
-# The code below is used to estimate which gamma distribution parameters would represent costs with 
-# the same mean and standard error.
-mean_cost <- 6669
-ul <- 9450
-desired_se <- ((ul-mean_cost)/1.96)
-
-get_beta <- function(a, mean) {
-  a/mean
-}
-
-get_var <- function(a, b) {
-  a/(b^2)
-}
-
-get_se <- function(alpha){
-  # use alpha as input, calculate the optimum beta given desired mean_cost
-  beta <- get_beta(alpha, mean_cost)
-  
-  # estimate the variance of the the gamma distribution given alpha and beta
-  est_var <- get_var(alpha, beta)
-  
-  # return the estimate se of distribution
-  sqrt(est_var)
-}
-
-test_sequence <- seq(20, 50, 0.01) # a sequence of alphas to use
-estimated_se <- map_dbl(test_sequence, get_se)
-
-df_parameters_and_distances <-
-  data.frame(
-  alpha=test_sequence,
-  beta=get_beta(test_sequence, mean_cost),
-  se=estimated_se
-) %>%
-  mutate(dist=abs(se-desired_se)) %>%
-  arrange(dist)
-
-
-s <- rgamma(n=1000000,df_parameters_and_distances$alpha[1], df_parameters_and_distances$beta[1])
-
-# select the gamma parameters that provide the closest similarity to the reported standard error (and mean)
-s %>% 
-  density() %>% 
-  plot()
-```
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
-
-``` r
-library(fitdistrplus)
-```
-
-    ## Loading required package: MASS
-
-    ## 
-    ## Attaching package: 'MASS'
-
-    ## The following object is masked from 'package:dplyr':
-    ## 
-    ##     select
-
-    ## Loading required package: survival
-
-``` r
-x <- rnorm(n=1000000, mean_cost, desired_se)
-x <- x[x>0]
-fit <- fitdist(x, "gamma", method="mme")
-```
-
-    ## $start.arg
-    ## $start.arg$shape
-    ## [1] 22.09866
-    ## 
-    ## $start.arg$rate
-    ## [1] 0.003313308
-    ## 
-    ## 
-    ## $fix.arg
-    ## NULL
-
-``` r
-fit$estimate
-```
-
-    ##        shape         rate 
-    ## 22.098662528  0.003313308
-
-``` r
-s2 <- rgamma(n=1000000,fit$estimate['shape'], fit$estimate['rate'])
-s2 %>% 
-  density() %>% 
-  plot()
-```
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-2-2.png)<!-- -->
-
-``` r
-cat("desired mean and se:\n")
-```
-
-    ## desired mean and se:
-
-``` r
-mean_cost
-```
-
-    ## [1] 6669
-
-``` r
-desired_se
-```
-
-    ## [1] 1418.878
-
-``` r
-cat("fit dist:\n")
-```
-
-    ## fit dist:
-
-``` r
-mean(s2)
-```
-
-    ## [1] 6669.248
-
-``` r
-sd(s2)
-```
-
-    ## [1] 1419.491
-
-``` r
-cat("my method:\n")
-```
-
-    ## my method:
-
-``` r
-mean(s)
-```
-
-    ## [1] 6669.969
-
-``` r
-sd(s)
-```
-
-    ## [1] 1421.549
-
-``` r
-# estimate effectiveness of intervention from Haines et al. (2010) Archives of Internal Medicine
-# https://sci-hub.hkvisa.net/10.1001/archinternmed.2010.444
-
-mean_eff <- 0.43
-ci95 <- c(0.24, 0.78)
-log(mean_eff)
-```
-
-    ## [1] -0.8439701
-
-``` r
-log(ci95)
-```
-
-    ## [1] -1.4271164 -0.2484614
-
-``` r
-log_hr <- log(mean_eff)
-log_hr_se <- (log(ci95[2]) - log(mean_eff))/1.96
-
-rnorm(1000, mean=log_hr, sd=log_hr_se) %>%
-  exp() %>%
-  density() %>% 
-  plot()
-```
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
-
-``` r
-quantile(rnorm(1000, mean=log_hr, sd=log_hr_se), probs=c(0.025, 0.975))
-```
-
-    ##       2.5%      97.5% 
-    ## -1.4268581 -0.2617282
-
-``` r
-log(ci95)
-```
-
-    ## [1] -1.4271164 -0.2484614
-
-``` r
-# Estimate impact of falls on health utility from Latimer et al (2013) Age and Ageing
-# https://academic.oup.com/ageing/article/42/5/641/18607?login=true
-
-noinj <- rep(0.02, 40)
-minorinj <- rep(0.04, 31)
-moderateinj <- rep(0.06, 18)
-majorinj <- rep(0.11, 9)
-fallers <- c(noinj, minorinj, moderateinj, majorinj)
-
-library(fitdistrplus)
-falldec <- fitdist(fallers, "gamma")
-```
-
-    ## $start.arg
-    ## $start.arg$shape
-    ## [1] 2.57529
-    ## 
-    ## $start.arg$rate
-    ## [1] 61.40594
-    ## 
-    ## 
-    ## $fix.arg
-    ## NULL
-
-``` r
-# Estimate additional costs of ICU readmission from Tong et al (2021) World J Surg
-# https://pubmed.ncbi.nlm.nih.gov/33788015/
-
-readmit <- rnorm(1000000, 19850, 7595)+50000
-no_readmit <- rnorm(1000000, 14916, 3483)+50000
-library(fitdistrplus)
-d_readmit <- fitdist(readmit, "gamma", "mme")
-```
-
-    ## $start.arg
-    ## $start.arg$shape
-    ## [1] 84.61911
-    ## 
-    ## $start.arg$rate
-    ## [1] 0.0012115
-    ## 
-    ## 
-    ## $fix.arg
-    ## NULL
-
-``` r
-d_no_readmit <- fitdist(no_readmit, "gamma", "mme")
-```
-
-    ## $start.arg
-    ## $start.arg$shape
-    ## [1] 346.9641
-    ## 
-    ## $start.arg$rate
-    ## [1] 0.00534438
-    ## 
-    ## 
-    ## $fix.arg
-    ## NULL
-
-``` r
-readmit_dist <- rgamma(1000000, d_readmit$estimate['shape'], d_readmit$estimate['rate'])-50000
-no_readmit_dist <- rgamma(1000000, d_no_readmit$estimate['shape'], d_no_readmit$estimate['rate'])-50000
-d_diff <- readmit_dist - no_readmit_dist
-diff_dist <- fitdist(d_diff, "norm")
-```
-
-    ## $start.arg
-    ## $start.arg$mean
-    ## [1] 4920.067
-    ## 
-    ## $start.arg$sd
-    ## [1] 8364.082
-    ## 
-    ## 
-    ## $fix.arg
-    ## NULL
+<!-- end list -->
 
 ``` r
 get_nmb <- function(){
-  # treatment_effect <- rbeta(1, 111.111, 1000) #QALY increment from treatment
-  # QALYs_event <- -rbeta(1, 10/3, 30) #QALY decrement from event
-  # treatment_cost <- rgamma(1, 100)
-  # wtp <- 28000
-  
-  # c(
-  #   "TN"=0,
-  #   "FN"=QALYs_event*wtp,
-  #   "TP"=QALYs_event*(1-treatment_effect)*wtp - treatment_cost,
-  #   "FP"=-treatment_cost
-  # )
-  
   # WTP from Edney et al (2018), Pharmacoeconomics
-  WTP <- 28033
+  WTP <- params$global$WTP
   
   # treatment_effect taken from: Haines et al. (2010) Archives of Internal Medicine
-  treatment_effect <- exp(rnorm(1, mean=-0.8439701, sd=0.303831))
+  treatment_effect <- exp(rnorm(
+    1, 
+    mean=params$falls$treatment_log_hazard$mean,
+    sd=params$falls$treatment_log_hazard$sd
+  ))
   
   # taken from abstract of Haines (2010), BMC Medicine
-  treatment_cost <- 294*1.03^(2022-2013)
+  treatment_cost <- params$falls$treatment_cost
   
   # taken from Morello et al (2015). MJA
-  falls_cost <- (rgamma(1, 22.09, 0.003312341))*(1.03^(2022-2015))
+  
+  falls_cost <- 
+    rgamma(
+      1, 
+      params$falls$falls_cost$shape, 
+      params$falls$falls_cost$rate
+    ) * params$falls$falls_cost$multiplier
   
   #taken from Latimer et al (2013) Age and Ageing
-  fall_eff <- rgamma(1, 2.57529, 61.40594)*0.5 #6-month follow-up <- QALY = 0.5*utility decrement
-  
+  fall_eff <- rbeta(
+    1,
+    params$falls$fall_decrement$shape1,
+    params$falls$fall_decrement$shape2
+  ) * 0.5 #Latimer conducted 6-month follow-up <- 0.5*utility = QALY
+    
   c(
     "TN"=0,
     "FN"=-falls_cost - fall_eff*WTP,
@@ -356,38 +82,49 @@ get_nmb()
 ```
 
     ##         TN         FN         TP         FP 
-    ##     0.0000 -5321.4913 -3699.0858  -383.6033
+    ##     0.0000 -6192.2677 -4883.8112  -383.6033
 
 ``` r
 get_nmb_ICU <- function(){
-# Note all costs are already adjusted to $AUD 2022
   
-  WTP <- 28033
+  WTP <- params$global$WTP
 
-  # treatment_effect taken from de Vos et al (2022), Value in Health
-  eff_disch <- rbeta(1, 14.29780, 19.74273)
+  # Treatment effect taken from de Vos et al (2022), Value in Health
+  eff_disch <- rbeta(
+    1,
+    params$icu$ward_eff$shape1,
+    params$icu$ward_eff$shape2
+  ) * params$icu$ward_eff$multiplier
   
   # ICU occupancy cost taken from Hicks et al (2019), MJA
-  ICU_cost <- rgamma(1, 12.427458201, 0.002603026)
+  ICU_cost <- rgamma(
+    1, 
+    params$icu$icu_cost$shape,
+    params$icu$icu_cost$scale
+  ) * params$icu$icu_cost$multiplier
   
   # Opportunity cost taken from Page et al (2017), BMC HSR
-  ICU_opp_cost <- 505
+  ICU_opp_cost <- params$icu$opp_cost
   
   # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
-  ICU_readmit <- rnorm(1, 4917, 8357)
+  ICU_readmit <- rnorm(
+    1, 
+    params$icu$icu_readmit_cost$mean,
+    params$icu$icu_readmit_cost$sd
+  ) * params$icu$icu_readmit_cost$multiplier
   
   c(
-    "TN2"=eff_disch*WTP,
-    "FN2"=eff_disch*WTP - ICU_readmit,
-    "TP2"=-ICU_cost,
-    "FP2"=-ICU_cost + ICU_opp_cost
+    "TN"=eff_disch*WTP,
+    "FN"=eff_disch*WTP - ICU_readmit,
+    "TP"=-ICU_cost,
+    "FP"=-ICU_cost + ICU_opp_cost
   )
 }
 get_nmb_ICU()
 ```
 
-    ##       TN2       FN2       TP2       FP2 
-    ## 13226.286 -2414.599 -3074.870 -2569.870
+    ##         TN         FN         TP         FP 
+    ##    28.6307 -3650.7631        NaN        NaN
 
 ### Run simulation
 
@@ -557,6 +294,7 @@ invisible(clusterEvalQ(cl, {
   library(tidyverse)
   library(data.table)
   library(cutpointr)
+  source("src/inputs.R")
   source("src/utils.R")
   source("src/cutpoint_methods.R")
 }))
@@ -587,7 +325,7 @@ ll1 <- parallel::parLapply(
 cowplot::plot_grid(plotlist=ll1, ncol=length(unique(g$sim_auc)))
 ```
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+![](experiment_1_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
 
 ``` r
 # cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))

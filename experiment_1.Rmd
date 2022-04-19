@@ -37,34 +37,6 @@ Question: What are the differences in NMB between models where the Probability t
 
 
 ```{r}
-# Estimate impact of falls on health utility from Latimer et al (2013) Age and Ageing
-# https://academic.oup.com/ageing/article/42/5/641/18607?login=true
-noinj <- rep(0.02, 40)
-minorinj <- rep(0.04, 31)
-moderateinj <- rep(0.06, 18)
-majorinj <- rep(0.11, 9)
-fallers <- c(noinj, minorinj, moderateinj, majorinj)
-
-library(fitdistrplus)
-falldec <- fitdist(fallers, "beta")
-```
-
-```{r}
-# Estimate additional costs of ICU readmission from Tong et al (2021) World J Surg
-# https://pubmed.ncbi.nlm.nih.gov/33788015/
-
-readmit <- rnorm(1000000, 19850, 7595)+50000
-no_readmit <- rnorm(1000000, 14916, 3483)+50000
-library(fitdistrplus)
-d_readmit <- fitdist(readmit, "gamma", "mme")
-d_no_readmit <- fitdist(no_readmit, "gamma", "mme")
-readmit_dist <- rgamma(1000000, d_readmit$estimate['shape'], d_readmit$estimate['rate'])-50000
-no_readmit_dist <- rgamma(1000000, d_no_readmit$estimate['shape'], d_no_readmit$estimate['rate'])-50000
-d_diff <- readmit_dist - no_readmit_dist
-diff_dist <- fitdist(d_diff, "norm")
-```
-
-```{r}
 
 get_nmb <- function(){
   # WTP from Edney et al (2018), Pharmacoeconomics
@@ -90,8 +62,12 @@ get_nmb <- function(){
     ) * params$falls$falls_cost$multiplier
   
   #taken from Latimer et al (2013) Age and Ageing
-  fall_eff <- rbeta(1, 2.425347, 55.40531)*0.5 #6-month follow-up <- QALY = 0.5*utility decrement
-  
+  fall_eff <- rbeta(
+    1,
+    params$falls$fall_decrement$shape1,
+    params$falls$fall_decrement$shape2
+  ) * 0.5 #Latimer conducted 6-month follow-up <- 0.5*utility = QALY
+    
   c(
     "TN"=0,
     "FN"=-falls_cost - fall_eff*WTP,
@@ -107,21 +83,32 @@ get_nmb()
 
 ```{r}
 get_nmb_ICU <- function(){
-# Note all costs are already adjusted to $AUD 2022
   
-  WTP <- 28033
+  WTP <- params$global$WTP
 
-  # treatment_effect taken from de Vos et al (2022), Value in Health
-  eff_disch <- rbeta(1, 14.29780, 19.74273)
+  # Treatment effect taken from de Vos et al (2022), Value in Health
+  eff_disch <- rbeta(
+    1,
+    params$icu$ward_eff$shape1,
+    params$icu$ward_eff$shape2
+  ) * params$icu$ward_eff$multiplier
   
   # ICU occupancy cost taken from Hicks et al (2019), MJA
-  ICU_cost <- rgamma(1, 12.427458201, 0.002603026)
+  ICU_cost <- rgamma(
+    1, 
+    params$icu$icu_cost$shape,
+    params$icu$icu_cost$scale
+  ) * params$icu$icu_cost$multiplier
   
   # Opportunity cost taken from Page et al (2017), BMC HSR
-  ICU_opp_cost <- 505
+  ICU_opp_cost <- params$icu$opp_cost
   
   # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
-  ICU_readmit <- rnorm(1, 4917, 8357)
+  ICU_readmit <- rnorm(
+    1, 
+    params$icu$icu_readmit_cost$mean,
+    params$icu$icu_readmit_cost$sd
+  ) * params$icu$icu_readmit_cost$multiplier
   
   c(
     "TN"=eff_disch*WTP,
