@@ -191,6 +191,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   df_plot <- df_result
   names(df_plot)[-1] <- method_levels <- paste0(names(df_plot)[-1], "(", pts, ")")
   if(get_what=="datasets") {return(list(df_plot=df_plot, df_result=df_result, df_thresholds=df_thresholds))}
+  sub <- glue::glue("auc: {sim_auc}; event_rate: {event_rate};\nsample_size: {sample_size}")
   if(plot_type=="boxplot"){
     p <- 
       df_plot %>%
@@ -202,7 +203,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       theme_bw() +
       labs(
         y="", x="",
-        subtitle=glue::glue("auc: {sim_auc}; event_rate: {event_rate}")
+        subtitle=sub
       ) +
       scale_y_continuous(labels=scales::dollar_format()) +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -239,7 +240,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       theme_bw() +
       labs(
         y="", x="",
-        subtitle=glue::glue("auc: {sim_auc}; event_rate: {event_rate}")
+        subtitle=sub
       ) +
       scale_y_continuous(labels=scales::dollar_format()) +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -253,11 +254,11 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   }
 }
 
-# test_run <- do_simulation(
-#   sample_size=100, n_sims=200, n_valid=5000, sim_auc=0.9, event_rate=0.025,
-#   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "point"
-# )
-# test_run
+test_run <- do_simulation(
+  sample_size=100, n_sims=200, n_valid=5000, sim_auc=0.9, event_rate=0.025,
+  fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "point"
+)
+test_run
 ```
 
 
@@ -322,12 +323,53 @@ cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
 
 ```
 
+```{r, fig.height=24, fig.width=12}
+
+library(parallel)
+n_cluster <- detectCores()
+cl <- makeCluster(n_cluster)
+cl <- parallelly::autoStopCluster(cl)
+
+g2 <- expand.grid(
+  sim_auc=c(0.65, 0.75, 0.85, 0.95),
+  # event_rate=c(0.01, 0.03, 0.1, 0.3, 0.7, 0.9)
+  train_size=c(100, 300, 1000, 3000, 10000)
+)
+
+clusterExport(cl, {
+  c("do_simulation", "g2", "get_nmb", "get_nmb_ICU", "params")
+})
+
+invisible(clusterEvalQ(cl, {
+  library(tidyverse)
+  library(data.table)
+  library(cutpointr)
+  source("src/utils.R")
+  source("src/cutpoint_methods.R")
+}))
+
+ll3 <- parallel::parLapply(
+  cl,
+  1:nrow(g2),
+  function(i) do_simulation(
+    sample_size=g2$train_size[i], n_sims=100, n_valid=1000,
+    sim_auc=g2$sim_auc[i], event_rate=0.025,
+    fx_costs=get_nmb, get_what="plot", resample_values=FALSE,
+    plot_type="boxplot"
+  )
+)
+
+cowplot::plot_grid(plotlist=ll3, ncol=length(unique(g2$sim_auc)))
+```
+
+
 # run simulation
 ```{r}
 test_run <- do_simulation(
-  sample_size=1000, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
+  sample_size=300, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
   fx_costs=get_nmb, resample_values=TRUE, get_what="datasets", plot_type = "point"
 )
+
 ```
 
 # visualisations
