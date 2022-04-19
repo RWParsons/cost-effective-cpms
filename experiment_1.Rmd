@@ -335,7 +335,11 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 #### Probability threshold selection method becomes increasingly important as the AUC of the model and the event rate reduces.
 #### I think that this is because, for models with very high discrimination, they're able to correctly classify a larger proportion of samples, and there are fewer which are classified differently based on selection method. The difference is greater for smaller event rates because a false negative is the most costly classification, and only the cost-based method is "aware" of this. This is also why, when the event rate is very high, there is not much of a difference between methods (cost-based method is focused on correctly classifying the majority class but so are the other methods).
 ```{r, fig.height=24, fig.width=12}
-
+simulation_config <- list(
+  training_sample_size = 500,
+  n_simulations = 200,
+  validation_sample_size = 1000
+)
 library(parallel)
 n_cluster <- detectCores()
 cl <- makeCluster(n_cluster)
@@ -347,7 +351,7 @@ g <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g", "get_nmb", "get_nmb_ICU", "params")
+  c("do_simulation", "g", "get_nmb", "get_nmb_ICU", "params", "simulation_config")
 })
 
 invisible(clusterEvalQ(cl, {
@@ -365,7 +369,9 @@ ll1 <- parallel::parLapply(
   cl,
   1:nrow(g),
   function(i) do_simulation(
-    sample_size=1000, n_sims=1000, n_valid=5000,
+    sample_size=simulation_config$training_sample_size,
+    n_sims=simulation_config$n_simulations,
+    n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
     fx_costs=get_nmb, get_what="plot", resample_values=TRUE,
     plot_type="density", scale=60
@@ -376,7 +382,9 @@ ll2 <- parallel::parLapply(
   cl,
   1:nrow(g),
   function(i) do_simulation(
-    sample_size=1000, n_sims=1000, n_valid=5000,
+    sample_size=simulation_config$training_sample_size,
+    n_sims=simulation_config$n_simulations,
+    n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
     fx_costs=get_nmb_ICU, get_what="plot", resample_values=TRUE,
     plot_type="density", scale=400
@@ -419,7 +427,7 @@ ll3 <- parallel::parLapply(
   cl,
   1:nrow(g2),
   function(i) do_simulation(
-    sample_size=g2$train_size[i], n_sims=1000, n_valid=5000,
+    sample_size=g2$train_size[i], n_sims=500, n_valid=5000,
     sim_auc=g2$sim_auc[i], event_rate=0.025,
     fx_costs=get_nmb, get_what="plot", resample_values=TRUE,
     plot_type="density"
