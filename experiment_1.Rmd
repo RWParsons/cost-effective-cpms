@@ -414,8 +414,8 @@ plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, ...) {
     theme_bw() +
     coord_flip()
 }
-plot_density_ridge(select(test_run$df_result, -n_sim), scale=60)
-plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), scale=0.02) 
+plot_density_ridge(select(test_run$df_result, -n_sim), FUN='hdi', scale=60)
+plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), FUN='hdi', scale=0.02) 
 ```
 
 # simpler visualisations
