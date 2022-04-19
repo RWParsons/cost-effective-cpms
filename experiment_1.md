@@ -192,7 +192,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   pts <- round(colMeans(df_thresholds)[-1], 3)
   df_plot <- df_result
   names(df_plot)[-1] <- method_levels <- paste0(names(df_plot)[-1], "(", pts, ")")
-  
+  if(get_what=="datasets") {return(list(df_plot=df_plot, df_result=df_result, df_thresholds=df_thresholds))}
   if(plot_type=="boxplot"){
     p <- 
       df_plot %>%
@@ -256,7 +256,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 }
 
 # test_run <- do_simulation(
-#   sample_size=500, n_sims=20, n_valid=500, sim_auc=0.7, event_rate=0.03,
+#   sample_size=100, n_sims=200, n_valid=5000, sim_auc=0.9, event_rate=0.025,
 #   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "point"
 # )
 # test_run
@@ -329,3 +329,48 @@ cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
 ```
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
+
+# run simulation
+
+``` r
+test_run <- do_simulation(
+  sample_size=1000, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
+  fx_costs=get_nmb, resample_values=TRUE, get_what="datasets", plot_type = "point"
+)
+```
+
+# visualisations
+
+``` r
+test_run$df_thresholds %>%
+  pivot_longer(!n_sim, names_to='method', values_to='threshold') %>%
+  ggplot(aes(threshold, fill=method)) + 
+  geom_histogram() +
+  facet_wrap(~method)
+```
+
+    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+
+``` r
+test_run$df_result %>%
+  pivot_longer(!n_sim, names_to='method', values_to='nmb') %>%
+  filter(!method%in% c("treat_all", "treat_none")) %>%
+  ggplot(aes(nmb, col=method)) + 
+  geom_density() +
+  theme_bw()
+```
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
+
+``` r
+test_run$df_result %>%
+  pivot_longer(!n_sim, names_to='method', values_to='nmb') %>%
+  filter(method %in% c("treat_all", "treat_none", "cost_effective")) %>%
+  ggplot(aes(nmb, col=method)) + 
+  geom_density() +
+  theme_bw()
+```
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-6-3.png)<!-- -->
