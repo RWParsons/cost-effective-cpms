@@ -7,8 +7,11 @@ output: rmarkdown::github_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 set.seed(42)
+library(fitdistrplus)
 library(tidyverse)
 library(data.table)
+library(ggridges)
+library(bayestestR)
 library(cutpointr)
 source("src/inputs.R")
 source("src/utils.R")
@@ -254,11 +257,11 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   }
 }
 
-test_run <- do_simulation(
-  sample_size=100, n_sims=200, n_valid=5000, sim_auc=0.9, event_rate=0.025,
-  fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "point"
-)
-test_run
+# test_run <- do_simulation(
+#   sample_size=100, n_sims=200, n_valid=5000, sim_auc=0.9, event_rate=0.025,
+#   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "point"
+# )
+# test_run
 ```
 
 
@@ -363,16 +366,59 @@ cowplot::plot_grid(plotlist=ll3, ncol=length(unique(g2$sim_auc)))
 ```
 
 
-# run simulation
-```{r}
+# run simulation and make some test visualisations - to show densities of thresholds/nmb
+```{r, fig.height=9, fig.width=12}
 test_run <- do_simulation(
   sample_size=300, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
   fx_costs=get_nmb, resample_values=TRUE, get_what="datasets", plot_type = "point"
 )
 
+
+plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, ...) {
+  # taken from:
+  # https://stackoverflow.com/questions/65269825/is-it-possible-to-recreate-the-functionality-of-bayesplots-mcmc-areas-plot-in
+  
+  # Determine whether to use eti or hdi function
+  FUN = match.arg(FUN)
+  FUN = match.fun(FUN)
+  
+  # Get kernel density estimate as a data frame
+  dens = map_df(data, ~ {
+    d = density(.x, na.rm=TRUE)
+    tibble(x=d$x, y=d$y)
+  }, .id="name")
+  
+  # Set relative width of median line
+  e = diff(range(dens$x)) * 0.006
+  
+  # Get credible interval width and median
+  cred.int = data %>% 
+    pivot_longer(cols=everything()) %>% 
+    group_by(name) %>% 
+    summarise(CI=list(FUN(value, ci=ci)),
+              m=median(value, na.rm=TRUE)) %>% 
+    unnest_wider(CI)
+  
+  dens %>% 
+    left_join(cred.int) %>% 
+    ggplot(aes(y=name, x=x, height=y)) +
+    geom_ridgeline(data= . %>% group_by(name) %>%
+                     filter(between(x, CI_low, CI_high)),
+                   fill=hcl(230,25,85), ...) +
+    geom_ridgeline(data=. %>% group_by(name) %>% 
+                     filter(between(x, m - e, m + e)),
+                   fill=hcl(240,30,60), ...) +
+    geom_ridgeline(fill=NA, ...) + 
+    geom_ridgeline(fill=NA, aes(height=0), ...) +
+    labs(y=NULL, x=NULL) +
+    theme_bw() +
+    coord_flip()
+}
+plot_density_ridge(select(test_run$df_result, -n_sim), scale=60)
+plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), scale=0.02) 
 ```
 
-# visualisations
+# simpler visualisations
 ```{r}
 test_run$df_thresholds %>%
   pivot_longer(!n_sim, names_to='method', values_to='threshold') %>%

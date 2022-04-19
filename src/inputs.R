@@ -1,6 +1,5 @@
 set.seed(42)
-library(tidyverse)
-library(fitdistrplus)
+
 n_samples <- 1000000
 
 params <- list()

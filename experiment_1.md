@@ -193,6 +193,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   df_plot <- df_result
   names(df_plot)[-1] <- method_levels <- paste0(names(df_plot)[-1], "(", pts, ")")
   if(get_what=="datasets") {return(list(df_plot=df_plot, df_result=df_result, df_thresholds=df_thresholds))}
+  sub <- glue::glue("auc: {sim_auc}; event_rate: {event_rate};\nsample_size: {sample_size}")
   if(plot_type=="boxplot"){
     p <- 
       df_plot %>%
@@ -204,7 +205,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       theme_bw() +
       labs(
         y="", x="",
-        subtitle=glue::glue("auc: {sim_auc}; event_rate: {event_rate}")
+        subtitle=sub
       ) +
       scale_y_continuous(labels=scales::dollar_format()) +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -241,7 +242,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       theme_bw() +
       labs(
         y="", x="",
-        subtitle=glue::glue("auc: {sim_auc}; event_rate: {event_rate}")
+        subtitle=sub
       ) +
       scale_y_continuous(labels=scales::dollar_format()) +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -330,16 +331,111 @@ cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
 
-# run simulation
+``` r
+library(parallel)
+n_cluster <- detectCores()
+cl <- makeCluster(n_cluster)
+cl <- parallelly::autoStopCluster(cl)
+
+g2 <- expand.grid(
+  sim_auc=c(0.65, 0.75, 0.85, 0.95),
+  # event_rate=c(0.01, 0.03, 0.1, 0.3, 0.7, 0.9)
+  train_size=c(100, 300, 1000, 3000, 10000)
+)
+
+clusterExport(cl, {
+  c("do_simulation", "g2", "get_nmb", "get_nmb_ICU", "params")
+})
+
+invisible(clusterEvalQ(cl, {
+  library(tidyverse)
+  library(data.table)
+  library(cutpointr)
+  source("src/utils.R")
+  source("src/cutpoint_methods.R")
+}))
+
+ll3 <- parallel::parLapply(
+  cl,
+  1:nrow(g2),
+  function(i) do_simulation(
+    sample_size=g2$train_size[i], n_sims=100, n_valid=1000,
+    sim_auc=g2$sim_auc[i], event_rate=0.025,
+    fx_costs=get_nmb, get_what="plot", resample_values=FALSE,
+    plot_type="boxplot"
+  )
+)
+
+cowplot::plot_grid(plotlist=ll3, ncol=length(unique(g2$sim_auc)))
+```
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+
+# run simulation and make some test visualisations - to show densities of thresholds/nmb
 
 ``` r
 test_run <- do_simulation(
-  sample_size=1000, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
+  sample_size=300, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
   fx_costs=get_nmb, resample_values=TRUE, get_what="datasets", plot_type = "point"
 )
+
+
+plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, ...) {
+  # taken from:
+  # https://stackoverflow.com/questions/65269825/is-it-possible-to-recreate-the-functionality-of-bayesplots-mcmc-areas-plot-in
+  
+  # Determine whether to use eti or hdi function
+  FUN = match.arg(FUN)
+  FUN = match.fun(FUN)
+  
+  # Get kernel density estimate as a data frame
+  dens = map_df(data, ~ {
+    d = density(.x, na.rm=TRUE)
+    tibble(x=d$x, y=d$y)
+  }, .id="name")
+  
+  # Set relative width of median line
+  e = diff(range(dens$x)) * 0.006
+  
+  # Get credible interval width and median
+  cred.int = data %>% 
+    pivot_longer(cols=everything()) %>% 
+    group_by(name) %>% 
+    summarise(CI=list(FUN(value, ci=ci)),
+              m=median(value, na.rm=TRUE)) %>% 
+    unnest_wider(CI)
+  
+  dens %>% 
+    left_join(cred.int) %>% 
+    ggplot(aes(y=name, x=x, height=y)) +
+    geom_ridgeline(data= . %>% group_by(name) %>%
+                     filter(between(x, CI_low, CI_high)),
+                   fill=hcl(230,25,85), ...) +
+    geom_ridgeline(data=. %>% group_by(name) %>% 
+                     filter(between(x, m - e, m + e)),
+                   fill=hcl(240,30,60), ...) +
+    geom_ridgeline(fill=NA, ...) + 
+    geom_ridgeline(fill=NA, aes(height=0), ...) +
+    labs(y=NULL, x=NULL) +
+    theme_bw() +
+    coord_flip()
+}
+plot_density_ridge(select(test_run$df_result, -n_sim), scale=60)
 ```
 
-# visualisations
+    ## Joining, by = "name"
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+
+``` r
+plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), scale=0.02) 
+```
+
+    ## Joining, by = "name"
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
+
+# simpler visualisations
 
 ``` r
 test_run$df_thresholds %>%
@@ -351,7 +447,7 @@ test_run$df_thresholds %>%
 
     ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+![](experiment_1_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
 
 ``` r
 test_run$df_result %>%
@@ -362,7 +458,7 @@ test_run$df_result %>%
   theme_bw()
 ```
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
+![](experiment_1_files/figure-gfm/unnamed-chunk-7-2.png)<!-- -->
 
 ``` r
 test_run$df_result %>%
@@ -373,4 +469,4 @@ test_run$df_result %>%
   theme_bw()
 ```
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-6-3.png)<!-- -->
+![](experiment_1_files/figure-gfm/unnamed-chunk-7-3.png)<!-- -->
