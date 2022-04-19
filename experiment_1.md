@@ -374,13 +374,20 @@ cowplot::plot_grid(plotlist=ll3, ncol=length(unique(g2$sim_auc)))
 # run simulation and make some test visualisations - to show densities of thresholds/nmb
 
 ``` r
+x <- get_nmb()
+test_fx <- function() x
 test_run <- do_simulation(
-  sample_size=300, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
+  sample_size=1000, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
   fx_costs=get_nmb, resample_values=TRUE, get_what="datasets", plot_type = "point"
 )
 
+test_run2 <- do_simulation(
+  sample_size=1000, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
+  fx_costs=test_fx, resample_values=TRUE, get_what="datasets", plot_type = "point"
+)
 
-plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, ...) {
+
+plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, limit_y=FALSE, ...) {
   # taken from:
   # https://stackoverflow.com/questions/65269825/is-it-possible-to-recreate-the-functionality-of-bayesplots-mcmc-areas-plot-in
   
@@ -395,7 +402,7 @@ plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, ...) {
   }, .id="name")
   
   # Set relative width of median line
-  e = diff(range(dens$x)) * 0.006
+  e = diff(range(dens$x)) * 0.004
   
   # Get credible interval width and median
   cred.int = data %>% 
@@ -405,7 +412,8 @@ plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, ...) {
               m=median(value, na.rm=TRUE)) %>% 
     unnest_wider(CI)
   
-  dens %>% 
+  p <- 
+    dens %>% 
     left_join(cred.int) %>% 
     ggplot(aes(y=name, x=x, height=y)) +
     geom_ridgeline(data= . %>% group_by(name) %>%
@@ -419,21 +427,65 @@ plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, ...) {
     labs(y=NULL, x=NULL) +
     theme_bw() +
     coord_flip()
+  
+  if(limit_y){
+    p <- p + 
+      scale_x_continuous(limits=c(0,1))
+  }
+  p
 }
-plot_density_ridge(select(test_run$df_result, -n_sim), scale=60)
+results_list <- list(
+  plot_density_ridge(select(test_run$df_result, -n_sim), FUN='hdi', scale=60),
+  plot_density_ridge(select(test_run2$df_result, -n_sim), FUN='hdi', scale=60)
+)
 ```
 
     ## Joining, by = "name"
+    ## Joining, by = "name"
+
+``` r
+thresholds_list <- list(
+  plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), FUN='hdi', scale=0.02, limit_y = T),
+  plot_density_ridge(select(test_run2$df_thresholds, -n_sim, -treat_all, -treat_none), FUN='hdi', scale=0.02, limit_y = T) 
+)
+```
+
+    ## Joining, by = "name"
+    ## Joining, by = "name"
+
+``` r
+library(cowplot)
+
+title <- ggdraw() + 
+  draw_label(
+    "With (left) and without (right) resampling of NMB for each class",
+    fontface = 'bold',
+    x = 0,
+    hjust = 0
+  ) +
+  theme(
+    # add margin on the left of the drawing canvas,
+    # so title is aligned with left edge of first plot
+    plot.margin = margin(0, 0, 0, 7)
+  )
+
+plot_row <- plot_grid(results_list[[1]], results_list[[2]])
+cowplot::plot_grid(title,plot_row, ncol=1, rel_heights = c(0.1, 1))
+```
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
 ``` r
-plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), scale=0.02) 
+plot_row <- plot_grid(thresholds_list[[1]], thresholds_list[[2]])
+cowplot::plot_grid(title,plot_row, ncol=1, rel_heights = c(0.1, 1))
 ```
 
-    ## Joining, by = "name"
-
 ![](experiment_1_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
+
+``` r
+# plot_density_ridge(select(test_run$df_result, -n_sim), FUN='hdi', scale=60)
+# plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), FUN='hdi', scale=0.02) 
+```
 
 # simpler visualisations
 
