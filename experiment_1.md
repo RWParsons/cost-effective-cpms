@@ -130,9 +130,61 @@ get_nmb_ICU()
 do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, 
                           fx_costs, resample_values=TRUE, 
                           get_what=c("data", "plot"), plot_type="boxplot",
+                          scale=60,
                           seed=42){
   if(!is.null(seed)) set.seed(seed)
-  
+  plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.9, factor_levels=NULL, limit_y=FALSE, ...) {
+    # taken from:
+    # https://stackoverflow.com/questions/65269825/is-it-possible-to-recreate-the-functionality-of-bayesplots-mcmc-areas-plot-in
+    
+    # Determine whether to use eti or hdi function
+    FUN = match.arg(FUN)
+    FUN = match.fun(FUN)
+    
+    # Get kernel density estimate as a data frame
+    dens = map_df(data, ~ {
+      d = density(.x, na.rm=TRUE)
+      tibble(x=d$x, y=d$y)
+    }, .id="name")
+    
+    # Set relative width of median line
+    e = diff(range(dens$x)) * 0.004
+    
+    # Get credible interval width and median
+    cred.int = data %>% 
+      pivot_longer(cols=everything()) %>% 
+      group_by(name) %>% 
+      summarise(CI=list(FUN(value, ci=ci)),
+                m=median(value, na.rm=TRUE)) %>% 
+      unnest_wider(CI)
+    
+    p_data <- left_join(dens, cred.int)
+    
+    if(!is.null(factor_levels)) {
+      p_data$name <- factor(p_data$name, levels=factor_levels)
+    }
+    
+    p <- 
+      p_data %>% 
+      ggplot(aes(y=name, x=x, height=y)) +
+      geom_ridgeline(data= . %>% group_by(name) %>%
+                       filter(between(x, CI_low, CI_high)),
+                     fill=hcl(230,25,85), ...) +
+      geom_ridgeline(data=. %>% group_by(name) %>% 
+                       filter(between(x, m - e, m + e)),
+                     fill=hcl(240,30,60), ...) +
+      geom_ridgeline(fill=NA, ...) + 
+      geom_ridgeline(fill=NA, aes(height=0), ...) +
+      labs(y=NULL, x=NULL) +
+      theme_bw() +
+      coord_flip()
+    
+    if(limit_y){
+      p <- p + 
+        scale_x_continuous(limits=c(0,1))
+    }
+    p
+  }
   i <- 0
   while(i < n_sims){
     train_sample <- get_sample(auc=sim_auc, n_samples=sample_size, prevalence=event_rate)
@@ -209,7 +261,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       ) +
       scale_y_continuous(labels=scales::dollar_format()) +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-  }else{
+  }else if(plot_type=="point"){
     get_medians <- function(x, nboot=500){
       m <- median(x)
       
@@ -246,6 +298,15 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       ) +
       scale_y_continuous(labels=scales::dollar_format()) +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  } else if(plot_type=="density") {
+    p <- plot_density_ridge(select(df_result, -n_sim), FUN='hdi', scale=scale, factor_levels = names(select(df_result, -n_sim))) +
+      theme_bw() +
+      labs(
+        y="", x="",
+        subtitle=sub
+      ) +
+      scale_x_continuous(labels=scales::dollar_format()) +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
   }
   
   if(length(get_what)==1){
@@ -257,8 +318,9 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 }
 
 # test_run <- do_simulation(
-#   sample_size=100, n_sims=200, n_valid=5000, sim_auc=0.9, event_rate=0.025,
-#   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "point"
+#   sample_size=100, n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.025,
+#   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "density",
+#   scale=60
 # )
 # test_run
 ```
@@ -281,7 +343,6 @@ cl <- parallelly::autoStopCluster(cl)
 
 g <- expand.grid(
   sim_auc=c(0.65, 0.75, 0.85, 0.95),
-  # event_rate=c(0.01, 0.03, 0.1, 0.3, 0.7, 0.9)
   event_rate=c(0.01, 0.025, 0.05, 0.075, 0.1)
 )
 
@@ -292,6 +353,8 @@ clusterExport(cl, {
 invisible(clusterEvalQ(cl, {
   library(tidyverse)
   library(data.table)
+  library(ggridges)
+  library(bayestestR)
   library(cutpointr)
   source("src/utils.R")
   source("src/cutpoint_methods.R")
@@ -302,10 +365,10 @@ ll1 <- parallel::parLapply(
   cl,
   1:nrow(g),
   function(i) do_simulation(
-    sample_size=500, n_sims=100, n_valid=1000,
+    sample_size=1000, n_sims=1000, n_valid=5000,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
     fx_costs=get_nmb, get_what="plot", resample_values=TRUE,
-    plot_type="point"
+    plot_type="density", scale=60
   )
 )
 
@@ -313,10 +376,10 @@ ll2 <- parallel::parLapply(
   cl,
   1:nrow(g),
   function(i) do_simulation(
-    sample_size=500, n_sims=100, n_valid=1000,
+    sample_size=1000, n_sims=1000, n_valid=5000,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    fx_costs=get_nmb_ICU, get_what="plot", resample_values=FALSE,
-    plot_type="point"
+    fx_costs=get_nmb_ICU, get_what="plot", resample_values=TRUE,
+    plot_type="density", scale=400
   )
 )
 
@@ -339,7 +402,6 @@ cl <- parallelly::autoStopCluster(cl)
 
 g2 <- expand.grid(
   sim_auc=c(0.65, 0.75, 0.85, 0.95),
-  # event_rate=c(0.01, 0.03, 0.1, 0.3, 0.7, 0.9)
   train_size=c(100, 300, 1000, 3000, 10000)
 )
 
@@ -350,6 +412,8 @@ clusterExport(cl, {
 invisible(clusterEvalQ(cl, {
   library(tidyverse)
   library(data.table)
+  library(ggridges)
+  library(bayestestR)
   library(cutpointr)
   source("src/utils.R")
   source("src/cutpoint_methods.R")
@@ -359,10 +423,10 @@ ll3 <- parallel::parLapply(
   cl,
   1:nrow(g2),
   function(i) do_simulation(
-    sample_size=g2$train_size[i], n_sims=100, n_valid=1000,
+    sample_size=g2$train_size[i], n_sims=1000, n_valid=5000,
     sim_auc=g2$sim_auc[i], event_rate=0.025,
-    fx_costs=get_nmb, get_what="plot", resample_values=FALSE,
-    plot_type="boxplot"
+    fx_costs=get_nmb, get_what="plot", resample_values=TRUE,
+    plot_type="density"
   )
 )
 
@@ -387,7 +451,7 @@ test_run2 <- do_simulation(
 )
 
 
-plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, limit_y=FALSE, ...) {
+plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, factor_levels=NULL, limit_y=FALSE, ...) {
   # taken from:
   # https://stackoverflow.com/questions/65269825/is-it-possible-to-recreate-the-functionality-of-bayesplots-mcmc-areas-plot-in
   
@@ -412,9 +476,14 @@ plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, limit_y=FALSE,
               m=median(value, na.rm=TRUE)) %>% 
     unnest_wider(CI)
   
+  plot_data <- left_join(dens, cred.int)
+  
+  if(!is.null(factor_levels)) {
+    plot_data$name <- factor(plot_data$name, levels=factor_levels)
+  }
+  
   p <- 
-    dens %>% 
-    left_join(cred.int) %>% 
+    plot_data %>% 
     ggplot(aes(y=name, x=x, height=y)) +
     geom_ridgeline(data= . %>% group_by(name) %>%
                      filter(between(x, CI_low, CI_high)),
@@ -483,7 +552,7 @@ cowplot::plot_grid(title,plot_row, ncol=1, rel_heights = c(0.1, 1))
 ![](experiment_1_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
 
 ``` r
-# plot_density_ridge(select(test_run$df_result, -n_sim), FUN='hdi', scale=60)
+# plot_density_ridge(select(test_run$df_result, -n_sim), FUN='hdi', scale=60, factor_levels = names(test_run$df_result)[-1])
 # plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), FUN='hdi', scale=0.02) 
 ```
 
