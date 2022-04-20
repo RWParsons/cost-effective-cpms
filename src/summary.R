@@ -154,3 +154,19 @@ plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.9, subtitle="", fa
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 }
 
+# extract content from lists (made from parallel processing of simulations)
+extract_plots <- function(l) {
+  res <- list()
+  for(i in 1:length(l)) {
+    res <- c(res, list(l[[i]]$plot))
+  }
+  res
+}
+
+extract_summaries <- function(l) {
+  res <- list()
+  for(i in 1:length(l)) {
+    res <- c(res, list(l[[i]]$summary))
+  }
+  res
+}

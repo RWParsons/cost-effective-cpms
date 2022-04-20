@@ -420,8 +420,8 @@ ll2 <- parallel::parLapply(
 )
 
 
-# cowplot::plot_grid(plotlist=ll1, ncol=length(unique(g$sim_auc)))
-# cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=extract_plots(ll1), ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=extract_plots(ll2), ncol=length(unique(g$sim_auc)))
 
 ```
 
@@ -468,7 +468,7 @@ ll3 <- parallel::parLapply(
   )
 )
 
-# cowplot::plot_grid(plotlist=ll3, ncol=length(unique(g2$sim_auc)))
+cowplot::plot_grid(plotlist=extract_plots(ll3), ncol=length(unique(g2$sim_auc)))
 ```
 
 
