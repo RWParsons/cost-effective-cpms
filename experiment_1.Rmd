@@ -384,13 +384,6 @@ invisible(clusterEvalQ(cl, {
 }))
 
 
-# x <- do_simulation(
-#   sample_size=500, n_sims=50, n_valid=1000, sim_auc=0.8, event_rate=0.025,
-#   fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-#   plot_type = "density",
-#   scale=60
-# )
-
 ll1 <- parallel::parLapply(
   cl,
   1:nrow(g),
@@ -419,9 +412,24 @@ ll2 <- parallel::parLapply(
   )
 )
 
-
 cowplot::plot_grid(plotlist=extract_plots(ll1), ncol=length(unique(g$sim_auc)))
 cowplot::plot_grid(plotlist=extract_plots(ll2), ncol=length(unique(g$sim_auc)))
+
+
+library(kableExtra)
+library(formattable)
+
+df_summaries <- rbindlist(extract_summaries(ll1)) %>%
+  group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
+  mutate(.group_id=cur_group_id()) %>%
+  ungroup()
+
+df_summaries %>%
+  select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
+  select(event_rate, sim_auc, everything()) %>%
+  pivot_wider(names_from="method", values_from="summary") %>% 
+  formattable() %>%
+  kable_styling() 
 
 ```
 

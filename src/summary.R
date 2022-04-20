@@ -163,10 +163,15 @@ extract_plots <- function(l) {
   res
 }
 
-extract_summaries <- function(l) {
+extract_summaries <- function(l, format_max_nmb=T) {
   res <- list()
   for(i in 1:length(l)) {
-    res <- c(res, list(l[[i]]$summary))
+    df_summary <- l[[i]]$summary
+    if(format_max_nmb){
+      medians <- as.numeric(str_extract(df_summary$summary, "-?\\d+\\.?\\d*"))
+      df_summary$summary[which.max(medians)] <- paste0("<b>", df_summary$summary[which.max(medians)], "</br>")
+    }
+    res <- c(res, list(df_summary))
   }
   res
 }

@@ -83,6 +83,33 @@ get_nmb()
     ##     0.0000 -6192.2677 -4883.8112  -383.6033
 
 ``` r
+# the same as get_nmb for falls but returns only the point estimates.
+get_nmb_est <- function() {
+  WTP <- params$global$WTP
+  
+  # treatment_effect taken from: Haines et al. (2010) Archives of Internal Medicine
+  treatment_effect <- exp(params$falls$treatment_log_hazard$mean)
+  
+  # taken from abstract of Haines (2010), BMC Medicine
+  treatment_cost <- params$falls$treatment_cost
+  
+  # taken from Morello et al (2015). MJA
+  
+  falls_cost <- 6669 * params$falls$falls_cost$multiplier
+  
+  #taken from Latimer et al (2013) Age and Ageing
+  fall_eff <- 0.04206168 * 0.5 #Latimer conducted 6-month follow-up <- 0.5*utility = QALY
+    
+  c(
+    "TN"=0,
+    "FN"=-falls_cost - fall_eff*WTP,
+    "TP"=-falls_cost*(1-treatment_effect) - treatment_cost - fall_eff*WTP,
+    "FP"=-treatment_cost
+  )
+}
+```
+
+``` r
 get_nmb_ICU <- function(){
   
   WTP <- params$global$WTP
@@ -128,63 +155,14 @@ get_nmb_ICU()
 
 ``` r
 do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, 
-                          fx_costs, resample_values=TRUE, 
-                          get_what=c("data", "plot"), plot_type="boxplot",
-                          scale=60,
+                          fx_costs_training, fx_costs_evaluation,
+                          return_summary=T, return_data=T, return_plot=T,
+                          plot_type="boxplot", 
+                          scale=60, use_hdi=TRUE, hdi_prob=0.9,
                           seed=42){
+  
   if(!is.null(seed)) set.seed(seed)
-  plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.9, factor_levels=NULL, limit_y=FALSE, ...) {
-    # taken from:
-    # https://stackoverflow.com/questions/65269825/is-it-possible-to-recreate-the-functionality-of-bayesplots-mcmc-areas-plot-in
-    
-    # Determine whether to use eti or hdi function
-    FUN = match.arg(FUN)
-    FUN = match.fun(FUN)
-    
-    # Get kernel density estimate as a data frame
-    dens = map_df(data, ~ {
-      d = density(.x, na.rm=TRUE)
-      tibble(x=d$x, y=d$y)
-    }, .id="name")
-    
-    # Set relative width of median line
-    e = diff(range(dens$x)) * 0.004
-    
-    # Get credible interval width and median
-    cred.int = data %>% 
-      pivot_longer(cols=everything()) %>% 
-      group_by(name) %>% 
-      summarise(CI=list(FUN(value, ci=ci)),
-                m=median(value, na.rm=TRUE)) %>% 
-      unnest_wider(CI)
-    
-    p_data <- left_join(dens, cred.int)
-    
-    if(!is.null(factor_levels)) {
-      p_data$name <- factor(p_data$name, levels=factor_levels)
-    }
-    
-    p <- 
-      p_data %>% 
-      ggplot(aes(y=name, x=x, height=y)) +
-      geom_ridgeline(data= . %>% group_by(name) %>%
-                       filter(between(x, CI_low, CI_high)),
-                     fill=hcl(230,25,85), ...) +
-      geom_ridgeline(data=. %>% group_by(name) %>% 
-                       filter(between(x, m - e, m + e)),
-                     fill=hcl(240,30,60), ...) +
-      geom_ridgeline(fill=NA, ...) + 
-      geom_ridgeline(fill=NA, aes(height=0), ...) +
-      labs(y=NULL, x=NULL) +
-      theme_bw() +
-      coord_flip()
-    
-    if(limit_y){
-      p <- p + 
-        scale_x_continuous(limits=c(0,1))
-    }
-    p
-  }
+  
   i <- 0
   while(i < n_sims){
     train_sample <- get_sample(auc=sim_auc, n_samples=sample_size, prevalence=event_rate)
@@ -199,24 +177,22 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     
     valid_sample$predicted <- predict(model, type="response", newdata=valid_sample)
     
-    value_vector <- fx_costs()
+    training_value_vector <- fx_costs_training()
     
     thresholds <- get_thresholds(
       predicted=train_sample$predicted, 
       actual=train_sample$actual,
-      costs=value_vector
+      costs=training_value_vector
     )
     
-    if(resample_values){
-      value_vector <- fx_costs()
-    }
+    evaluation_value_vector <- fx_costs_evaluation()
     
     cost_threshold <- function(pt){
       classify_samples(
         predicted=valid_sample$predicted,
         actual=valid_sample$actual,
         pt=pt,
-        costs=value_vector
+        costs=evaluation_value_vector
       )
     }
     
@@ -244,85 +220,47 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   pts <- round(colMeans(df_thresholds)[-1], 3)
   df_plot <- df_result
   names(df_plot)[-1] <- method_levels <- paste0(names(df_plot)[-1], "(", pts, ")")
-  if(get_what=="datasets") {return(list(df_plot=df_plot, df_result=df_result, df_thresholds=df_thresholds))}
-  sub <- glue::glue("auc: {sim_auc}; event_rate: {event_rate};\nsample_size: {sample_size}")
-  if(plot_type=="boxplot"){
-    p <- 
-      df_plot %>%
-      pivot_longer(!n_sim, names_to="method", values_to="nmb") %>%
-      mutate(method=factor(method, levels=method_levels)) %>%
-      ggplot(aes(method, nmb)) +
-      geom_boxplot() +
-      geom_jitter(alpha=0.1, width=0.1) +
-      theme_bw() +
-      labs(
-        y="", x="",
-        subtitle=sub
-      ) +
-      scale_y_continuous(labels=scales::dollar_format()) +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-  }else if(plot_type=="point"){
-    get_medians <- function(x, nboot=500){
-      m <- median(x)
-      
-      boots <- map_dbl(
-        1:nboot, 
-        function(v){
-          s <- sample(x, size=length(v), replace=T)
-          median(s)
-        }
-      )
-      list(median=m, median_se=sd(boots))
+  
+  res <- list()
+  
+  if(return_plot){
+    sub <- glue::glue("auc: {sim_auc}; event_rate: {event_rate};\nsample_size: {sample_size}")
+    if(plot_type=="boxplot"){
+      p <- get_boxplot(data=df_plot, ordered_methods=method_levels, subtitle=sub)
+    } else if(plot_type=="point"){
+      p <- get_errorbar_plot(data=df_plot, ordered_methods=method_levels, subtitle=sub)
+    } else if(plot_type=="density") {
+      p <- plot_density_ridge(
+        select(df_result, -n_sim), FUN='hdi', scale=scale, subtitle=sub,
+        factor_levels=names(select(df_result, -n_sim))
+      ) 
     }
-    
-    df_plot2 <- 
-      df_plot %>%
-      pivot_longer(!n_sim, values_to="nmb", names_to="method")
-    
-    df_plot2 <- as.data.table(df_plot2)[
-      ,
-      get_medians(x=nmb),
-      by = list(method)
-    ]
-    
-    p <-
-      df_plot2 %>%
-      mutate(method=factor(method, levels=method_levels)) %>%
-      ggplot(aes(method, median)) +
-      geom_point() +
-      geom_errorbar(aes(ymin=median-median_se, ymax=median+median_se, width=0)) +
-      theme_bw() +
-      labs(
-        y="", x="",
-        subtitle=sub
-      ) +
-      scale_y_continuous(labels=scales::dollar_format()) +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-  } else if(plot_type=="density") {
-    p <- plot_density_ridge(select(df_result, -n_sim), FUN='hdi', scale=scale, factor_levels = names(select(df_result, -n_sim))) +
-      theme_bw() +
-      labs(
-        y="", x="",
-        subtitle=sub
-      ) +
-      scale_x_continuous(labels=scales::dollar_format()) +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+    res <- c(res, list(plot=p))
   }
   
-  if(length(get_what)==1){
-    if(get_what=="data"){return(df_result)}
-    if(get_what=="plot"){return(p)}
-  }else{
-    return(list(data=df_result, plot=p))
+  if(return_summary){
+    df_summary <- get_summary(
+      data=df_result, hdi_prob=hdi_prob, use_hdi=use_hdi,
+      sample_size=sample_size, n_sims=n_sims,
+      n_valid=n_valid, sim_auc=sim_auc,
+      event_rate=event_rate
+    )
+    res <- c(res, list(summary=df_summary))
   }
+  
+  if(return_data){
+    res <- c(res, list(data=df_result))
+  }
+  res
 }
 
-# test_run <- do_simulation(
-#   sample_size=100, n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.025,
-#   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "density",
+# x <- do_simulation(
+#   sample_size=500, n_sims=50, n_valid=1000, sim_auc=0.8, event_rate=0.025,
+#   fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+#   plot_type = "density",
 #   scale=60
 # )
-# test_run
+# x
 ```
 
 ## search through a grid of combinations of AUC and event rates to see how this influences the differences between probability threshold methods. The same costs were used in all simulations (distributions at top of document) and are resampled separately for training and validation.
@@ -352,7 +290,7 @@ g <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g", "get_nmb", "get_nmb_ICU", "params", "simulation_config")
+  c("do_simulation", "g", "get_nmb", "get_nmb_est", "get_nmb_ICU", "params", "simulation_config")
 })
 
 invisible(clusterEvalQ(cl, {
@@ -363,6 +301,7 @@ invisible(clusterEvalQ(cl, {
   library(cutpointr)
   source("src/utils.R")
   source("src/cutpoint_methods.R")
+  source("src/summary.R")
 }))
 
 
@@ -374,7 +313,8 @@ ll1 <- parallel::parLapply(
     n_sims=simulation_config$n_simulations,
     n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    fx_costs=get_nmb, get_what="plot", resample_values=TRUE,
+    return_data=F, return_plot=T, return_summary=T,
+    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
     plot_type="density", scale=60
   )
 )
@@ -387,21 +327,674 @@ ll2 <- parallel::parLapply(
     n_sims=simulation_config$n_simulations,
     n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    fx_costs=get_nmb_ICU, get_what="plot", resample_values=TRUE,
+    return_data=F, return_plot=T, return_summary=T,
+    fx_costs_training=get_nmb_ICU, fx_costs_evaluation=get_nmb_ICU,
     plot_type="density", scale=400
   )
 )
 
-cowplot::plot_grid(plotlist=ll1, ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=extract_plots(ll1), ncol=length(unique(g$sim_auc)))
 ```
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+![](experiment_1_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
 
 ``` r
-cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=extract_plots(ll2), ncol=length(unique(g$sim_auc)))
 ```
 
-![](experiment_1_files/figure-gfm/unnamed-chunk-4-2.png)<!-- -->
+![](experiment_1_files/figure-gfm/unnamed-chunk-5-2.png)<!-- -->
+
+``` r
+library(kableExtra)
+```
+
+    ## 
+    ## Attaching package: 'kableExtra'
+
+    ## The following object is masked from 'package:dplyr':
+    ## 
+    ##     group_rows
+
+``` r
+library(formattable)
+```
+
+    ## 
+    ## Attaching package: 'formattable'
+
+    ## The following object is masked from 'package:MASS':
+    ## 
+    ##     area
+
+``` r
+df_summaries <- rbindlist(extract_summaries(ll1)) %>%
+  group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
+  mutate(.group_id=cur_group_id()) %>%
+  ungroup()
+
+df_summaries %>%
+  select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
+  select(event_rate, sim_auc, everything()) %>%
+  pivot_wider(names_from="method", values_from="summary") %>% 
+  formattable() %>%
+  kable_styling() 
+```
+
+<table class="table table-condensed">
+<thead>
+<tr>
+<th style="text-align:right;">
+event\_rate
+</th>
+<th style="text-align:right;">
+sim\_auc
+</th>
+<th style="text-align:right;">
+treat\_all
+</th>
+<th style="text-align:right;">
+treat\_none
+</th>
+<th style="text-align:right;">
+cost\_effective
+</th>
+<th style="text-align:right;">
+er
+</th>
+<th style="text-align:right;">
+youden
+</th>
+<th style="text-align:right;">
+cz
+</th>
+<th style="text-align:right;">
+iu
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.65
+</td>
+<td style="text-align:right;">
+-432.26 \[90% HDI:-467.8, -402.11\]
+</td>
+<td style="text-align:right;">
+<b>-81.09 \[90% HDI:-132.59, -40.61\]</br>
+</td>
+<td style="text-align:right;">
+-87.62 \[90% HDI:-408.37, -36.81\]
+</td>
+<td style="text-align:right;">
+-182.02 \[90% HDI:-288.8, -102.01\]
+</td>
+<td style="text-align:right;">
+-200.43 \[90% HDI:-316.25, -85.05\]
+</td>
+<td style="text-align:right;">
+-198.73 \[90% HDI:-300.15, -111.09\]
+</td>
+<td style="text-align:right;">
+-164.85 \[90% HDI:-299.04, -63.73\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.75
+</td>
+<td style="text-align:right;">
+-432.26 \[90% HDI:-467.8, -402.11\]
+</td>
+<td style="text-align:right;">
+<b>-81.09 \[90% HDI:-132.59, -40.61\]</br>
+</td>
+<td style="text-align:right;">
+-82.57 \[90% HDI:-139.09, -46.48\]
+</td>
+<td style="text-align:right;">
+-161.36 \[90% HDI:-231.73, -78.23\]
+</td>
+<td style="text-align:right;">
+-162.99 \[90% HDI:-254.93, -77.84\]
+</td>
+<td style="text-align:right;">
+-162.44 \[90% HDI:-236.36, -77.2\]
+</td>
+<td style="text-align:right;">
+-148.75 \[90% HDI:-233.48, -59.89\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:right;">
+-432.26 \[90% HDI:-467.8, -402.11\]
+</td>
+<td style="text-align:right;">
+-81.09 \[90% HDI:-132.59, -40.61\]
+</td>
+<td style="text-align:right;">
+<b>-80.75 \[90% HDI:-129.93, -43.31\]</br>
+</td>
+<td style="text-align:right;">
+-128.58 \[90% HDI:-191.1, -66.23\]
+</td>
+<td style="text-align:right;">
+-135.18 \[90% HDI:-208.11, -62.78\]
+</td>
+<td style="text-align:right;">
+-130.4 \[90% HDI:-190.91, -56.49\]
+</td>
+<td style="text-align:right;">
+-124.33 \[90% HDI:-188.04, -58.02\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.95
+</td>
+<td style="text-align:right;">
+-432.26 \[90% HDI:-467.8, -402.11\]
+</td>
+<td style="text-align:right;">
+-81.09 \[90% HDI:-132.59, -40.61\]
+</td>
+<td style="text-align:right;">
+<b>-73.65 \[90% HDI:-118.92, -39.95\]</br>
+</td>
+<td style="text-align:right;">
+-90.95 \[90% HDI:-148.7, -49.9\]
+</td>
+<td style="text-align:right;">
+-90.67 \[90% HDI:-149.96, -46.34\]
+</td>
+<td style="text-align:right;">
+-90.67 \[90% HDI:-149.96, -46.34\]
+</td>
+<td style="text-align:right;">
+-89.12 \[90% HDI:-135.16, -43.06\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.025
+</td>
+<td style="text-align:right;">
+0.65
+</td>
+<td style="text-align:right;">
+-508.74 \[90% HDI:-592.63, -443.23\]
+</td>
+<td style="text-align:right;">
+<b>-211.09 \[90% HDI:-320.14, -126.64\]</br>
+</td>
+<td style="text-align:right;">
+-215.95 \[90% HDI:-334.04, -112.47\]
+</td>
+<td style="text-align:right;">
+-302.48 \[90% HDI:-404.87, -215.82\]
+</td>
+<td style="text-align:right;">
+-313.56 \[90% HDI:-434.48, -201.86\]
+</td>
+<td style="text-align:right;">
+-308.24 \[90% HDI:-404.87, -214.66\]
+</td>
+<td style="text-align:right;">
+-307.97 \[90% HDI:-418.89, -218.65\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.025
+</td>
+<td style="text-align:right;">
+0.75
+</td>
+<td style="text-align:right;">
+-508.74 \[90% HDI:-592.63, -443.23\]
+</td>
+<td style="text-align:right;">
+<b>-211.09 \[90% HDI:-320.14, -126.64\]</br>
+</td>
+<td style="text-align:right;">
+-211.98 \[90% HDI:-324.88, -130.72\]
+</td>
+<td style="text-align:right;">
+-272.23 \[90% HDI:-368.58, -188.69\]
+</td>
+<td style="text-align:right;">
+-279.32 \[90% HDI:-398.59, -185.51\]
+</td>
+<td style="text-align:right;">
+-272.7 \[90% HDI:-369.53, -190.12\]
+</td>
+<td style="text-align:right;">
+-271.9 \[90% HDI:-382.97, -201.07\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.025
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:right;">
+-508.74 \[90% HDI:-592.63, -443.23\]
+</td>
+<td style="text-align:right;">
+-211.09 \[90% HDI:-320.14, -126.64\]
+</td>
+<td style="text-align:right;">
+<b>-195.7 \[90% HDI:-303.67, -131.18\]</br>
+</td>
+<td style="text-align:right;">
+-235.28 \[90% HDI:-323.5, -148.28\]
+</td>
+<td style="text-align:right;">
+-238.57 \[90% HDI:-333.8, -145.41\]
+</td>
+<td style="text-align:right;">
+-240.33 \[90% HDI:-326.23, -147.54\]
+</td>
+<td style="text-align:right;">
+-235.19 \[90% HDI:-319.27, -157.04\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.025
+</td>
+<td style="text-align:right;">
+0.95
+</td>
+<td style="text-align:right;">
+-508.74 \[90% HDI:-592.63, -443.23\]
+</td>
+<td style="text-align:right;">
+-211.09 \[90% HDI:-320.14, -126.64\]
+</td>
+<td style="text-align:right;">
+<b>-175.43 \[90% HDI:-262.74, -106\]</br>
+</td>
+<td style="text-align:right;">
+-187.76 \[90% HDI:-262.63, -110.78\]
+</td>
+<td style="text-align:right;">
+-194.92 \[90% HDI:-269.24, -111.26\]
+</td>
+<td style="text-align:right;">
+-190.6 \[90% HDI:-269.24, -111.26\]
+</td>
+<td style="text-align:right;">
+-188.16 \[90% HDI:-274.49, -112.75\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.050
+</td>
+<td style="text-align:right;">
+0.65
+</td>
+<td style="text-align:right;">
+-642.1 \[90% HDI:-781.61, -506.49\]
+</td>
+<td style="text-align:right;">
+-427.71 \[90% HDI:-625.19, -282.26\]
+</td>
+<td style="text-align:right;">
+<b>-424.55 \[90% HDI:-604.01, -274.76\]</br>
+</td>
+<td style="text-align:right;">
+-472.38 \[90% HDI:-631.55, -347.38\]
+</td>
+<td style="text-align:right;">
+-485.42 \[90% HDI:-644.82, -336.98\]
+</td>
+<td style="text-align:right;">
+-475.25 \[90% HDI:-627.85, -334.1\]
+</td>
+<td style="text-align:right;">
+-477.2 \[90% HDI:-631.72, -344.22\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.050
+</td>
+<td style="text-align:right;">
+0.75
+</td>
+<td style="text-align:right;">
+-642.1 \[90% HDI:-781.61, -506.49\]
+</td>
+<td style="text-align:right;">
+-427.71 \[90% HDI:-625.19, -282.26\]
+</td>
+<td style="text-align:right;">
+<b>-412.13 \[90% HDI:-593.58, -283.28\]</br>
+</td>
+<td style="text-align:right;">
+-437.56 \[90% HDI:-595.72, -308.39\]
+</td>
+<td style="text-align:right;">
+-442.3 \[90% HDI:-598.48, -301.34\]
+</td>
+<td style="text-align:right;">
+-437.81 \[90% HDI:-588.11, -305.92\]
+</td>
+<td style="text-align:right;">
+-436.01 \[90% HDI:-591.66, -301.73\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.050
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:right;">
+-642.1 \[90% HDI:-781.61, -506.49\]
+</td>
+<td style="text-align:right;">
+-427.71 \[90% HDI:-625.19, -282.26\]
+</td>
+<td style="text-align:right;">
+<b>-380.01 \[90% HDI:-535.64, -248.18\]</br>
+</td>
+<td style="text-align:right;">
+-390.52 \[90% HDI:-535.49, -255.79\]
+</td>
+<td style="text-align:right;">
+-396.37 \[90% HDI:-539.05, -256.3\]
+</td>
+<td style="text-align:right;">
+-395.38 \[90% HDI:-535.11, -250.68\]
+</td>
+<td style="text-align:right;">
+-395.15 \[90% HDI:-537.41, -255.24\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.050
+</td>
+<td style="text-align:right;">
+0.95
+</td>
+<td style="text-align:right;">
+-642.1 \[90% HDI:-781.61, -506.49\]
+</td>
+<td style="text-align:right;">
+-427.71 \[90% HDI:-625.19, -282.26\]
+</td>
+<td style="text-align:right;">
+<b>-332.57 \[90% HDI:-489.85, -209.34\]</br>
+</td>
+<td style="text-align:right;">
+-338.87 \[90% HDI:-486.64, -207.87\]
+</td>
+<td style="text-align:right;">
+-342.98 \[90% HDI:-485.81, -212.56\]
+</td>
+<td style="text-align:right;">
+-339.21 \[90% HDI:-489.57, -212.56\]
+</td>
+<td style="text-align:right;">
+-335.03 \[90% HDI:-496.94, -214.86\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.075
+</td>
+<td style="text-align:right;">
+0.65
+</td>
+<td style="text-align:right;">
+-770.34 \[90% HDI:-972.69, -596.97\]
+</td>
+<td style="text-align:right;">
+-635.5 \[90% HDI:-882.83, -430.23\]
+</td>
+<td style="text-align:right;">
+<b>-629.1 \[90% HDI:-890.37, -470\]</br>
+</td>
+<td style="text-align:right;">
+-642.31 \[90% HDI:-859.76, -476.78\]
+</td>
+<td style="text-align:right;">
+-644.62 \[90% HDI:-853.74, -463.21\]
+</td>
+<td style="text-align:right;">
+-639.44 \[90% HDI:-859.8, -476.78\]
+</td>
+<td style="text-align:right;">
+-648.51 \[90% HDI:-858.01, -474.82\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.075
+</td>
+<td style="text-align:right;">
+0.75
+</td>
+<td style="text-align:right;">
+-770.34 \[90% HDI:-972.69, -596.97\]
+</td>
+<td style="text-align:right;">
+-635.5 \[90% HDI:-882.83, -430.23\]
+</td>
+<td style="text-align:right;">
+<b>-592.01 \[90% HDI:-804.82, -404.08\]</br>
+</td>
+<td style="text-align:right;">
+-599.55 \[90% HDI:-810.14, -425.73\]
+</td>
+<td style="text-align:right;">
+-600.39 \[90% HDI:-817.84, -431.98\]
+</td>
+<td style="text-align:right;">
+-598.5 \[90% HDI:-810.14, -426.16\]
+</td>
+<td style="text-align:right;">
+-603.42 \[90% HDI:-815.98, -432.93\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.075
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:right;">
+-770.34 \[90% HDI:-972.69, -596.97\]
+</td>
+<td style="text-align:right;">
+-635.5 \[90% HDI:-882.83, -430.23\]
+</td>
+<td style="text-align:right;">
+<b>-544.01 \[90% HDI:-748.77, -371.45\]</br>
+</td>
+<td style="text-align:right;">
+-548.09 \[90% HDI:-761.36, -382.86\]
+</td>
+<td style="text-align:right;">
+-547.09 \[90% HDI:-760.6, -375.86\]
+</td>
+<td style="text-align:right;">
+-547.7 \[90% HDI:-760.6, -381.14\]
+</td>
+<td style="text-align:right;">
+-549.16 \[90% HDI:-770.31, -389.76\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.075
+</td>
+<td style="text-align:right;">
+0.95
+</td>
+<td style="text-align:right;">
+-770.34 \[90% HDI:-972.69, -596.97\]
+</td>
+<td style="text-align:right;">
+-635.5 \[90% HDI:-882.83, -430.23\]
+</td>
+<td style="text-align:right;">
+-488.36 \[90% HDI:-694.91, -313.35\]
+</td>
+<td style="text-align:right;">
+-486.38 \[90% HDI:-696.71, -313.09\]
+</td>
+<td style="text-align:right;">
+-486.18 \[90% HDI:-696.71, -314.29\]
+</td>
+<td style="text-align:right;">
+-486.18 \[90% HDI:-696.71, -314.29\]
+</td>
+<td style="text-align:right;">
+<b>-483.02 \[90% HDI:-695.39, -315.44\]</br>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.65
+</td>
+<td style="text-align:right;">
+-898.39 \[90% HDI:-1172.23, -661.01\]
+</td>
+<td style="text-align:right;">
+-861.75 \[90% HDI:-1194.56, -600.78\]
+</td>
+<td style="text-align:right;">
+-819.12 \[90% HDI:-1087.72, -583.57\]
+</td>
+<td style="text-align:right;">
+<b>-806.31 \[90% HDI:-1088.03, -585.97\]</br>
+</td>
+<td style="text-align:right;">
+-815.01 \[90% HDI:-1088.03, -579.01\]
+</td>
+<td style="text-align:right;">
+-807 \[90% HDI:-1075.39, -578.31\]
+</td>
+<td style="text-align:right;">
+-811.94 \[90% HDI:-1111.14, -610.83\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.75
+</td>
+<td style="text-align:right;">
+-898.39 \[90% HDI:-1172.23, -661.01\]
+</td>
+<td style="text-align:right;">
+-861.75 \[90% HDI:-1194.56, -600.78\]
+</td>
+<td style="text-align:right;">
+-765.49 \[90% HDI:-1036.62, -525.04\]
+</td>
+<td style="text-align:right;">
+-759.31 \[90% HDI:-1035.48, -532.23\]
+</td>
+<td style="text-align:right;">
+-758.75 \[90% HDI:-1031.96, -535.17\]
+</td>
+<td style="text-align:right;">
+<b>-758.5 \[90% HDI:-1035.48, -531.78\]</br>
+</td>
+<td style="text-align:right;">
+-762.74 \[90% HDI:-1022.11, -526.84\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:right;">
+-898.39 \[90% HDI:-1172.23, -661.01\]
+</td>
+<td style="text-align:right;">
+-861.75 \[90% HDI:-1194.56, -600.78\]
+</td>
+<td style="text-align:right;">
+-712.57 \[90% HDI:-948.34, -462.71\]
+</td>
+<td style="text-align:right;">
+<b>-710.56 \[90% HDI:-976.54, -482.36\]</br>
+</td>
+<td style="text-align:right;">
+-718.54 \[90% HDI:-961.59, -470.45\]
+</td>
+<td style="text-align:right;">
+-712.41 \[90% HDI:-976.54, -481.67\]
+</td>
+<td style="text-align:right;">
+-710.8 \[90% HDI:-977.31, -478.92\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.95
+</td>
+<td style="text-align:right;">
+-898.39 \[90% HDI:-1172.23, -661.01\]
+</td>
+<td style="text-align:right;">
+-861.75 \[90% HDI:-1194.56, -600.78\]
+</td>
+<td style="text-align:right;">
+-637.67 \[90% HDI:-887.87, -377.67\]
+</td>
+<td style="text-align:right;">
+-640.98 \[90% HDI:-913.29, -409.06\]
+</td>
+<td style="text-align:right;">
+<b>-636.5 \[90% HDI:-886.12, -382.09\]</br>
+</td>
+<td style="text-align:right;">
+-636.5 \[90% HDI:-886.12, -382.09\]
+</td>
+<td style="text-align:right;">
+-636.95 \[90% HDI:-913.93, -408.79\]
+</td>
+</tr>
+</tbody>
+</table>
 
 ``` r
 library(parallel)
@@ -415,7 +1008,7 @@ g2 <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g2", "get_nmb", "get_nmb_ICU", "params")
+  c("do_simulation", "g2", "get_nmb", "get_nmb_est", "params")
 })
 
 invisible(clusterEvalQ(cl, {
@@ -426,177 +1019,26 @@ invisible(clusterEvalQ(cl, {
   library(cutpointr)
   source("src/utils.R")
   source("src/cutpoint_methods.R")
+  source("src/summary.R")
 }))
+
+
 
 ll3 <- parallel::parLapply(
   cl,
-  1:nrow(g2),
+  1:nrow(g),
   function(i) do_simulation(
-    sample_size=g2$train_size[i], n_sims=500, n_valid=5000,
+    sample_size=g2$train_size[i],
+    n_sims=30,
+    n_valid=5000,
     sim_auc=g2$sim_auc[i], event_rate=0.025,
-    fx_costs=get_nmb, get_what="plot", resample_values=TRUE,
-    plot_type="density"
+    return_data=F, return_plot=T, return_summary=T,
+    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+    plot_type="density", scale=60
   )
 )
 
-cowplot::plot_grid(plotlist=ll3, ncol=length(unique(g2$sim_auc)))
-```
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
-
-# run simulation and make some test visualisations - to show densities of thresholds/nmb
-
-``` r
-x <- get_nmb()
-test_fx <- function() x
-test_run <- do_simulation(
-  sample_size=1000, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
-  fx_costs=get_nmb, resample_values=TRUE, get_what="datasets", plot_type = "point"
-)
-
-test_run2 <- do_simulation(
-  sample_size=1000, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
-  fx_costs=test_fx, resample_values=TRUE, get_what="datasets", plot_type = "point"
-)
-
-
-plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, factor_levels=NULL, limit_y=FALSE, ...) {
-  # taken from:
-  # https://stackoverflow.com/questions/65269825/is-it-possible-to-recreate-the-functionality-of-bayesplots-mcmc-areas-plot-in
-  
-  # Determine whether to use eti or hdi function
-  FUN = match.arg(FUN)
-  FUN = match.fun(FUN)
-  
-  # Get kernel density estimate as a data frame
-  dens = map_df(data, ~ {
-    d = density(.x, na.rm=TRUE)
-    tibble(x=d$x, y=d$y)
-  }, .id="name")
-  
-  # Set relative width of median line
-  e = diff(range(dens$x)) * 0.004
-  
-  # Get credible interval width and median
-  cred.int = data %>% 
-    pivot_longer(cols=everything()) %>% 
-    group_by(name) %>% 
-    summarise(CI=list(FUN(value, ci=ci)),
-              m=median(value, na.rm=TRUE)) %>% 
-    unnest_wider(CI)
-  
-  plot_data <- left_join(dens, cred.int)
-  
-  if(!is.null(factor_levels)) {
-    plot_data$name <- factor(plot_data$name, levels=factor_levels)
-  }
-  
-  p <- 
-    plot_data %>% 
-    ggplot(aes(y=name, x=x, height=y)) +
-    geom_ridgeline(data= . %>% group_by(name) %>%
-                     filter(between(x, CI_low, CI_high)),
-                   fill=hcl(230,25,85), ...) +
-    geom_ridgeline(data=. %>% group_by(name) %>% 
-                     filter(between(x, m - e, m + e)),
-                   fill=hcl(240,30,60), ...) +
-    geom_ridgeline(fill=NA, ...) + 
-    geom_ridgeline(fill=NA, aes(height=0), ...) +
-    labs(y=NULL, x=NULL) +
-    theme_bw() +
-    coord_flip()
-  
-  if(limit_y){
-    p <- p + 
-      scale_x_continuous(limits=c(0,1))
-  }
-  p
-}
-results_list <- list(
-  plot_density_ridge(select(test_run$df_result, -n_sim), FUN='hdi', scale=60),
-  plot_density_ridge(select(test_run2$df_result, -n_sim), FUN='hdi', scale=60)
-)
-```
-
-    ## Joining, by = "name"
-    ## Joining, by = "name"
-
-``` r
-thresholds_list <- list(
-  plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), FUN='hdi', scale=0.02, limit_y = T),
-  plot_density_ridge(select(test_run2$df_thresholds, -n_sim, -treat_all, -treat_none), FUN='hdi', scale=0.02, limit_y = T) 
-)
-```
-
-    ## Joining, by = "name"
-    ## Joining, by = "name"
-
-``` r
-library(cowplot)
-
-title <- ggdraw() + 
-  draw_label(
-    "With (left) and without (right) resampling of NMB for each class",
-    fontface = 'bold',
-    x = 0,
-    hjust = 0
-  ) +
-  theme(
-    # add margin on the left of the drawing canvas,
-    # so title is aligned with left edge of first plot
-    plot.margin = margin(0, 0, 0, 7)
-  )
-
-plot_row <- plot_grid(results_list[[1]], results_list[[2]])
-cowplot::plot_grid(title,plot_row, ncol=1, rel_heights = c(0.1, 1))
+cowplot::plot_grid(plotlist=extract_plots(ll3), ncol=length(unique(g2$sim_auc)))
 ```
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
-
-``` r
-plot_row <- plot_grid(thresholds_list[[1]], thresholds_list[[2]])
-cowplot::plot_grid(title,plot_row, ncol=1, rel_heights = c(0.1, 1))
-```
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
-
-``` r
-# plot_density_ridge(select(test_run$df_result, -n_sim), FUN='hdi', scale=60, factor_levels = names(test_run$df_result)[-1])
-# plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), FUN='hdi', scale=0.02) 
-```
-
-# simpler visualisations
-
-``` r
-test_run$df_thresholds %>%
-  pivot_longer(!n_sim, names_to='method', values_to='threshold') %>%
-  ggplot(aes(threshold, fill=method)) + 
-  geom_histogram() +
-  facet_wrap(~method)
-```
-
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
-
-``` r
-test_run$df_result %>%
-  pivot_longer(!n_sim, names_to='method', values_to='nmb') %>%
-  filter(!method%in% c("treat_all", "treat_none")) %>%
-  ggplot(aes(nmb, col=method)) + 
-  geom_density() +
-  theme_bw()
-```
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-7-2.png)<!-- -->
-
-``` r
-test_run$df_result %>%
-  pivot_longer(!n_sim, names_to='method', values_to='nmb') %>%
-  filter(method %in% c("treat_all", "treat_none", "cost_effective")) %>%
-  ggplot(aes(nmb, col=method)) + 
-  geom_density() +
-  theme_bw()
-```
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-7-3.png)<!-- -->
