@@ -16,6 +16,7 @@ library(cutpointr)
 source("src/inputs.R")
 source("src/utils.R")
 source("src/cutpoint_methods.R")
+source("src/summary.R")
 ```
 
 
@@ -80,7 +81,30 @@ get_nmb <- function(){
 }
 get_nmb()
 
-
+# the same as get_nmb for falls but returns only the point estimates.
+get_nmb_est <- function() {
+  WTP <- params$global$WTP
+  
+  # treatment_effect taken from: Haines et al. (2010) Archives of Internal Medicine
+  treatment_effect <- exp(params$falls$treatment_log_hazard$mean)
+  
+  # taken from abstract of Haines (2010), BMC Medicine
+  treatment_cost <- params$falls$treatment_cost
+  
+  # taken from Morello et al (2015). MJA
+  
+  falls_cost <- 6669 * params$falls$falls_cost$multiplier
+  
+  #taken from Latimer et al (2013) Age and Ageing
+  fall_eff <- 0.04206168 * 0.5 #Latimer conducted 6-month follow-up <- 0.5*utility = QALY
+    
+  c(
+    "TN"=0,
+    "FN"=-falls_cost - fall_eff*WTP,
+    "TP"=-falls_cost*(1-treatment_effect) - treatment_cost - fall_eff*WTP,
+    "FP"=-treatment_cost
+  )
+}
 ```
 
 
@@ -129,63 +153,14 @@ get_nmb_ICU()
 ```{r}
 
 do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, 
-                          fx_costs, resample_values=TRUE, 
-                          get_what=c("data", "plot"), plot_type="boxplot",
-                          scale=60,
+                          fx_costs_training, fx_costs_evaluation,
+                          return_summary=T, return_data=T, return_plot=T,
+                          plot_type="boxplot", 
+                          scale=60, use_hdi=TRUE, hdi_prob=0.9,
                           seed=42){
+  
   if(!is.null(seed)) set.seed(seed)
-  plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.9, factor_levels=NULL, limit_y=FALSE, ...) {
-    # taken from:
-    # https://stackoverflow.com/questions/65269825/is-it-possible-to-recreate-the-functionality-of-bayesplots-mcmc-areas-plot-in
-    
-    # Determine whether to use eti or hdi function
-    FUN = match.arg(FUN)
-    FUN = match.fun(FUN)
-    
-    # Get kernel density estimate as a data frame
-    dens = map_df(data, ~ {
-      d = density(.x, na.rm=TRUE)
-      tibble(x=d$x, y=d$y)
-    }, .id="name")
-    
-    # Set relative width of median line
-    e = diff(range(dens$x)) * 0.004
-    
-    # Get credible interval width and median
-    cred.int = data %>% 
-      pivot_longer(cols=everything()) %>% 
-      group_by(name) %>% 
-      summarise(CI=list(FUN(value, ci=ci)),
-                m=median(value, na.rm=TRUE)) %>% 
-      unnest_wider(CI)
-    
-    p_data <- left_join(dens, cred.int)
-    
-    if(!is.null(factor_levels)) {
-      p_data$name <- factor(p_data$name, levels=factor_levels)
-    }
-    
-    p <- 
-      p_data %>% 
-      ggplot(aes(y=name, x=x, height=y)) +
-      geom_ridgeline(data= . %>% group_by(name) %>%
-                       filter(between(x, CI_low, CI_high)),
-                     fill=hcl(230,25,85), ...) +
-      geom_ridgeline(data=. %>% group_by(name) %>% 
-                       filter(between(x, m - e, m + e)),
-                     fill=hcl(240,30,60), ...) +
-      geom_ridgeline(fill=NA, ...) + 
-      geom_ridgeline(fill=NA, aes(height=0), ...) +
-      labs(y=NULL, x=NULL) +
-      theme_bw() +
-      coord_flip()
-    
-    if(limit_y){
-      p <- p + 
-        scale_x_continuous(limits=c(0,1))
-    }
-    p
-  }
+  
   i <- 0
   while(i < n_sims){
     train_sample <- get_sample(auc=sim_auc, n_samples=sample_size, prevalence=event_rate)
@@ -200,24 +175,22 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     
     valid_sample$predicted <- predict(model, type="response", newdata=valid_sample)
     
-    value_vector <- fx_costs()
+    training_value_vector <- fx_costs_training()
     
     thresholds <- get_thresholds(
       predicted=train_sample$predicted, 
       actual=train_sample$actual,
-      costs=value_vector
+      costs=training_value_vector
     )
     
-    if(resample_values){
-      value_vector <- fx_costs()
-    }
+    evaluation_value_vector <- fx_costs_evaluation()
     
     cost_threshold <- function(pt){
       classify_samples(
         predicted=valid_sample$predicted,
         actual=valid_sample$actual,
         pt=pt,
-        costs=value_vector
+        costs=evaluation_value_vector
       )
     }
     
@@ -245,85 +218,130 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   pts <- round(colMeans(df_thresholds)[-1], 3)
   df_plot <- df_result
   names(df_plot)[-1] <- method_levels <- paste0(names(df_plot)[-1], "(", pts, ")")
-  if(get_what=="datasets") {return(list(df_plot=df_plot, df_result=df_result, df_thresholds=df_thresholds))}
-  sub <- glue::glue("auc: {sim_auc}; event_rate: {event_rate};\nsample_size: {sample_size}")
-  if(plot_type=="boxplot"){
-    p <- 
-      df_plot %>%
-      pivot_longer(!n_sim, names_to="method", values_to="nmb") %>%
-      mutate(method=factor(method, levels=method_levels)) %>%
-      ggplot(aes(method, nmb)) +
-      geom_boxplot() +
-      geom_jitter(alpha=0.1, width=0.1) +
-      theme_bw() +
-      labs(
-        y="", x="",
-        subtitle=sub
-      ) +
-      scale_y_continuous(labels=scales::dollar_format()) +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-  }else if(plot_type=="point"){
-    get_medians <- function(x, nboot=500){
-      m <- median(x)
-      
-      boots <- map_dbl(
-        1:nboot, 
-        function(v){
-          s <- sample(x, size=length(v), replace=T)
-          median(s)
-        }
-      )
-      list(median=m, median_se=sd(boots))
+  
+  res <- list()
+  
+  if(return_plot){
+    sub <- glue::glue("auc: {sim_auc}; event_rate: {event_rate};\nsample_size: {sample_size}")
+    if(plot_type=="boxplot"){
+      p <- get_boxplot(data=df_plot, ordered_methods=method_levels, subtitle=sub)
+    } else if(plot_type=="point"){
+      p <- get_errorbar_plot(data=df_plot, ordered_methods=method_levels, subtitle=sub)
+    } else if(plot_type=="density") {
+      p <- plot_density_ridge(
+        select(df_result, -n_sim), FUN='hdi', scale=scale, subtitle=sub,
+        factor_levels=names(select(df_result, -n_sim))
+      ) 
     }
-    
-    df_plot2 <- 
-      df_plot %>%
-      pivot_longer(!n_sim, values_to="nmb", names_to="method")
-    
-    df_plot2 <- as.data.table(df_plot2)[
-      ,
-      get_medians(x=nmb),
-      by = list(method)
-    ]
-    
-    p <-
-      df_plot2 %>%
-      mutate(method=factor(method, levels=method_levels)) %>%
-      ggplot(aes(method, median)) +
-      geom_point() +
-      geom_errorbar(aes(ymin=median-median_se, ymax=median+median_se, width=0)) +
-      theme_bw() +
-      labs(
-        y="", x="",
-        subtitle=sub
-      ) +
-      scale_y_continuous(labels=scales::dollar_format()) +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-  } else if(plot_type=="density") {
-    p <- plot_density_ridge(select(df_result, -n_sim), FUN='hdi', scale=scale, factor_levels = names(select(df_result, -n_sim))) +
-      theme_bw() +
-      labs(
-        y="", x="",
-        subtitle=sub
-      ) +
-      scale_x_continuous(labels=scales::dollar_format()) +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+    res <- c(res, list(plot=p))
   }
   
-  if(length(get_what)==1){
-    if(get_what=="data"){return(df_result)}
-    if(get_what=="plot"){return(p)}
-  }else{
-    return(list(data=df_result, plot=p))
+  if(return_summary){
+    df_summary <- get_summary(
+      data=df_result, hdi_prob=hdi_prob, use_hdi=use_hdi,
+      sample_size=sample_size, n_sims=n_sims,
+      n_valid=n_valid, sim_auc=sim_auc,
+      event_rate=event_rate
+    )
+    res <- c(res, list(summary=df_summary))
   }
+  
+  if(return_data){
+    res <- c(res, list(data=df_result))
+  }
+  res
 }
 
-# test_run <- do_simulation(
-#   sample_size=100, n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.025,
+# x <- do_simulation(
+#   sample_size=500, n_sims=50, n_valid=1000, sim_auc=0.8, event_rate=0.025,
+#   fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+#   plot_type = "density",
+#   scale=60
+# )
+# x
+
+```
+
+
+```{r, include=F}
+# test run new method for getting cost-effective threshold when considering distributions rather than only a single sample from get_nmb() 
+# fx_get_cost_effective_threshold <- function(fx_nmb, predicted, actual, nboot=100) {
+#   sampler <- function(predicted, actual) {
+#     idx <- sample(1:length(predicted), replace=TRUE)
+#     p <- predicted[idx]
+#     a <- actual[idx]
+#     if(length(unique(a))==1) {
+#       res <- sampler(predicted=predicted, actual=actual)
+#     } else {
+#       res <- list(p=p, a=a)
+#     }
+#     res
+#   }
+#   f <- function() {
+#     costs <- fx_nmb()
+#     sampled <- sampler(predicted=predicted, actual=actual)
+#     pt_cost_effective <- cutpointr(
+#       x=sampled$p, class=sampled$a, method=maximize_metric, metric=fx_total_nmb,
+#       utility_tp=costs["TP"], utility_tn=costs["TN"],
+#       cost_fp=costs["FP"], cost_fn=costs["FN"],
+#       silent=TRUE
+#     )[['optimal_cutpoint']]
+#     if (pt_cost_effective > 1) {
+#       pt_cost_effective <- 1
+#     }
+#     pt_cost_effective
+#   }
+#   
+#   cutpoints <- replicate(nboot, f(), simplify=T)
+#   # median(cutpoints)
+#   cutpoints
+# }
+# 
+# 
+# do_test <- function(...) {
+#   x <- do_simulation(
+#     sample_size=1000, n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.1,
+#     fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "density",
+#     scale=60, seed=NULL
+#   )
+#   costs <- get_nmb()
+#   current <- cutpointr(
+#     x=x$predicted, class=x$actual, method=maximize_metric, metric=fx_total_nmb,
+#     utility_tp=costs["TP"], utility_tn=costs["TN"],
+#     cost_fp=costs["FP"], cost_fn=costs["FN"],
+#     silent=TRUE
+#   )[['optimal_cutpoint']]
+#   if (current > 1) {
+#     current <- 1
+#   }
+#   
+#   new <- fx_get_cost_effective_threshold(fx_nmb=get_nmb, predicted=x$predicted, actual=x$actual, nboot=100)
+#   new <- median(new)
+#   
+#   return(list(new=new,current=current))
+#   
+# }
+# 
+# out <- map_dfr(1:100, do_test)
+# x <- do_simulation(
+#   sample_size=1000, n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.025,
 #   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "density",
 #   scale=60
 # )
-# test_run
+# 
+# 
+# 
+# get_nmb_est()
+# cps <- fx_get_cost_effective_threshold(fx_nmb=get_nmb, predicted=x$predicted, actual=x$actual)
+# 
+# plot(density(out$new))
+# plot(density(out$current))
+# 
+# out %>%
+#   mutate(id=row_number()) %>%
+#   pivot_longer(!id) %>%
+#   ggplot(aes(value, col=name)) +
+#   geom_density()
 ```
 
 
@@ -351,7 +369,7 @@ g <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g", "get_nmb", "get_nmb_ICU", "params", "simulation_config")
+  c("do_simulation", "g", "get_nmb", "get_nmb_est", "get_nmb_ICU", "params", "simulation_config")
 })
 
 invisible(clusterEvalQ(cl, {
@@ -362,8 +380,16 @@ invisible(clusterEvalQ(cl, {
   library(cutpointr)
   source("src/utils.R")
   source("src/cutpoint_methods.R")
+  source("src/summary.R")
 }))
 
+
+# x <- do_simulation(
+#   sample_size=500, n_sims=50, n_valid=1000, sim_auc=0.8, event_rate=0.025,
+#   fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+#   plot_type = "density",
+#   scale=60
+# )
 
 ll1 <- parallel::parLapply(
   cl,
@@ -373,7 +399,8 @@ ll1 <- parallel::parLapply(
     n_sims=simulation_config$n_simulations,
     n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    fx_costs=get_nmb, get_what="plot", resample_values=TRUE,
+    return_data=F, return_plot=T, return_summary=T,
+    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
     plot_type="density", scale=60
   )
 )
@@ -386,14 +413,15 @@ ll2 <- parallel::parLapply(
     n_sims=simulation_config$n_simulations,
     n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    fx_costs=get_nmb_ICU, get_what="plot", resample_values=TRUE,
+    return_data=F, return_plot=T, return_summary=T,
+    fx_costs_training=get_nmb_ICU, fx_costs_evaluation=get_nmb_ICU,
     plot_type="density", scale=400
   )
 )
 
-cowplot::plot_grid(plotlist=ll1, ncol=length(unique(g$sim_auc)))
 
-cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
+# cowplot::plot_grid(plotlist=ll1, ncol=length(unique(g$sim_auc)))
+# cowplot::plot_grid(plotlist=ll2, ncol=length(unique(g$sim_auc)))
 
 ```
 
@@ -410,7 +438,7 @@ g2 <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g2", "get_nmb", "get_nmb_ICU", "params")
+  c("do_simulation", "g2", "get_nmb", "get_nmb_est", "params")
 })
 
 invisible(clusterEvalQ(cl, {
@@ -421,146 +449,26 @@ invisible(clusterEvalQ(cl, {
   library(cutpointr)
   source("src/utils.R")
   source("src/cutpoint_methods.R")
+  source("src/summary.R")
 }))
+
+
 
 ll3 <- parallel::parLapply(
   cl,
-  1:nrow(g2),
+  1:nrow(g),
   function(i) do_simulation(
-    sample_size=g2$train_size[i], n_sims=500, n_valid=5000,
+    sample_size=g2$train_size[i],
+    n_sims=30,
+    n_valid=5000,
     sim_auc=g2$sim_auc[i], event_rate=0.025,
-    fx_costs=get_nmb, get_what="plot", resample_values=TRUE,
-    plot_type="density"
+    return_data=F, return_plot=T, return_summary=T,
+    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+    plot_type="density", scale=60
   )
 )
 
-cowplot::plot_grid(plotlist=ll3, ncol=length(unique(g2$sim_auc)))
+# cowplot::plot_grid(plotlist=ll3, ncol=length(unique(g2$sim_auc)))
 ```
 
-
-# run simulation and make some test visualisations - to show densities of thresholds/nmb
-```{r, fig.height=9, fig.width=12}
-
-x <- get_nmb()
-test_fx <- function() x
-test_run <- do_simulation(
-  sample_size=1000, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
-  fx_costs=get_nmb, resample_values=TRUE, get_what="datasets", plot_type = "point"
-)
-
-test_run2 <- do_simulation(
-  sample_size=1000, n_sims=200, n_valid=5000, sim_auc=0.85, event_rate=0.025,
-  fx_costs=test_fx, resample_values=TRUE, get_what="datasets", plot_type = "point"
-)
-
-
-plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.89, factor_levels=NULL, limit_y=FALSE, ...) {
-  # taken from:
-  # https://stackoverflow.com/questions/65269825/is-it-possible-to-recreate-the-functionality-of-bayesplots-mcmc-areas-plot-in
-  
-  # Determine whether to use eti or hdi function
-  FUN = match.arg(FUN)
-  FUN = match.fun(FUN)
-  
-  # Get kernel density estimate as a data frame
-  dens = map_df(data, ~ {
-    d = density(.x, na.rm=TRUE)
-    tibble(x=d$x, y=d$y)
-  }, .id="name")
-  
-  # Set relative width of median line
-  e = diff(range(dens$x)) * 0.004
-  
-  # Get credible interval width and median
-  cred.int = data %>% 
-    pivot_longer(cols=everything()) %>% 
-    group_by(name) %>% 
-    summarise(CI=list(FUN(value, ci=ci)),
-              m=median(value, na.rm=TRUE)) %>% 
-    unnest_wider(CI)
-  
-  plot_data <- left_join(dens, cred.int)
-  
-  if(!is.null(factor_levels)) {
-    plot_data$name <- factor(plot_data$name, levels=factor_levels)
-  }
-  
-  p <- 
-    plot_data %>% 
-    ggplot(aes(y=name, x=x, height=y)) +
-    geom_ridgeline(data= . %>% group_by(name) %>%
-                     filter(between(x, CI_low, CI_high)),
-                   fill=hcl(230,25,85), ...) +
-    geom_ridgeline(data=. %>% group_by(name) %>% 
-                     filter(between(x, m - e, m + e)),
-                   fill=hcl(240,30,60), ...) +
-    geom_ridgeline(fill=NA, ...) + 
-    geom_ridgeline(fill=NA, aes(height=0), ...) +
-    labs(y=NULL, x=NULL) +
-    theme_bw() +
-    coord_flip()
-  
-  if(limit_y){
-    p <- p + 
-      scale_x_continuous(limits=c(0,1))
-  }
-  p
-}
-results_list <- list(
-  plot_density_ridge(select(test_run$df_result, -n_sim), FUN='hdi', scale=60),
-  plot_density_ridge(select(test_run2$df_result, -n_sim), FUN='hdi', scale=60)
-)
-
-thresholds_list <- list(
-  plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), FUN='hdi', scale=0.02, limit_y = T),
-  plot_density_ridge(select(test_run2$df_thresholds, -n_sim, -treat_all, -treat_none), FUN='hdi', scale=0.02, limit_y = T) 
-)
-
-library(cowplot)
-
-title <- ggdraw() + 
-  draw_label(
-    "With (left) and without (right) resampling of NMB for each class",
-    fontface = 'bold',
-    x = 0,
-    hjust = 0
-  ) +
-  theme(
-    # add margin on the left of the drawing canvas,
-    # so title is aligned with left edge of first plot
-    plot.margin = margin(0, 0, 0, 7)
-  )
-
-plot_row <- plot_grid(results_list[[1]], results_list[[2]])
-cowplot::plot_grid(title,plot_row, ncol=1, rel_heights = c(0.1, 1))
-
-plot_row <- plot_grid(thresholds_list[[1]], thresholds_list[[2]])
-cowplot::plot_grid(title,plot_row, ncol=1, rel_heights = c(0.1, 1))
-
-# plot_density_ridge(select(test_run$df_result, -n_sim), FUN='hdi', scale=60, factor_levels = names(test_run$df_result)[-1])
-# plot_density_ridge(select(test_run$df_thresholds, -n_sim, -treat_all, -treat_none), FUN='hdi', scale=0.02) 
-```
-
-# simpler visualisations
-```{r}
-test_run$df_thresholds %>%
-  pivot_longer(!n_sim, names_to='method', values_to='threshold') %>%
-  ggplot(aes(threshold, fill=method)) + 
-  geom_histogram() +
-  facet_wrap(~method)
-
-test_run$df_result %>%
-  pivot_longer(!n_sim, names_to='method', values_to='nmb') %>%
-  filter(!method%in% c("treat_all", "treat_none")) %>%
-  ggplot(aes(nmb, col=method)) + 
-  geom_density() +
-  theme_bw()
-
-test_run$df_result %>%
-  pivot_longer(!n_sim, names_to='method', values_to='nmb') %>%
-  filter(method %in% c("treat_all", "treat_none", "cost_effective")) %>%
-  ggplot(aes(nmb, col=method)) + 
-  geom_density() +
-  theme_bw()
-```
 
