@@ -141,7 +141,7 @@ get_nmb_ICU <- function(){
     "TN"=eff_disch*WTP,
     "FN"=eff_disch*WTP - ICU_readmit,
     "TP"=-ICU_cost,
-    "FP"=-ICU_cost + ICU_opp_cost
+    "FP"=-ICU_cost - ICU_opp_cost
   )
 }
 get_nmb_ICU()
