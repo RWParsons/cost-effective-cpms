@@ -82,7 +82,7 @@ get_nmb()
 ```
 
     ##         TN         FN         TP         FP 
-    ##     0.0000 -6192.2677 -4883.8112  -383.6033
+    ##     0.0000 -9107.6463 -5978.8682  -383.6033
 
 ``` r
 # the same as get_nmb for falls but returns only the point estimates.
@@ -133,16 +133,16 @@ get_nmb_ICU <- function(){
   # Opportunity cost taken from Page et al (2017), BMC HSR
   ICU_opp_cost <- params$icu$opp_cost
   
-  # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
-  ICU_readmit <- rnorm(
+  # ICU readmission LOS taken from Chen et al (1998), Crit Care Med
+  ICU_readmit <- rgamma(
     1, 
-    params$icu$icu_readmit_cost$mean,
-    params$icu$icu_readmit_cost$sd
-  ) * params$icu$icu_readmit_cost$multiplier
+    params$icu$icu_readmit_los$shape,
+    params$icu$icu_readmit_los$rate,
+  )
   
   c(
     "TN"=eff_disch*WTP,
-    "FN"=eff_disch*WTP - ICU_readmit,
+    "FN"=eff_disch*WTP - ICU_readmit*ICU_cost,
     "TP"=-ICU_cost,
     "FP"=-ICU_cost - ICU_opp_cost
   )
@@ -150,8 +150,8 @@ get_nmb_ICU <- function(){
 get_nmb_ICU()
 ```
 
-    ##         TN         FN         TP         FP 
-    ##    28.6307  8234.2848 -4132.5328 -4637.9763
+    ##          TN          FN          TP          FP 
+    ##    34.68588 -7618.72730 -4214.68081 -4720.12431
 
 ``` r
 # Repeat point estimate replacement for ICU
@@ -167,12 +167,12 @@ get_nmb_est_ICU <- function() {
    # Opportunity cost taken from Page et al (2017), BMC HSR
   ICU_opp_cost <- params$icu$opp_cost
   
-  # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
-  ICU_readmit <- params$icu$icu_readmit_cost$mean * params$icu$icu_readmit_cost$multiplier
+  # ICU readmission LOS taken from Chen et al (2021), World Journal of Surgery
+  ICU_readmit <- 7.8
     
   c(
     "TN"=eff_disch*WTP,
-    "FN"=eff_disch*WTP - unname(ICU_readmit),
+    "FN"=eff_disch*WTP - unname(ICU_readmit)*ICU_cost,
     "TP"=-ICU_cost,
     "FP"=-ICU_cost - ICU_opp_cost
   )
@@ -1629,6 +1629,1250 @@ iu
 <td style="text-align:right;">
 
 \-636.95 \[90% HDI:-913.93, -408.79\]
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+``` r
+df_summaries_ICU <- rbindlist(extract_summaries(ll2)) %>%
+  group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
+  mutate(.group_id=cur_group_id()) %>%
+  ungroup()
+
+df_summaries_ICU %>%
+  select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
+  select(event_rate, sim_auc, everything()) %>%
+  pivot_wider(names_from="method", values_from="summary") %>% 
+  formattable() %>%
+  kable_styling() 
+```
+
+<table class="table table-condensed">
+
+<thead>
+
+<tr>
+
+<th style="text-align:right;">
+
+event\_rate
+
+</th>
+
+<th style="text-align:right;">
+
+sim\_auc
+
+</th>
+
+<th style="text-align:right;">
+
+treat\_all
+
+</th>
+
+<th style="text-align:right;">
+
+treat\_none
+
+</th>
+
+<th style="text-align:right;">
+
+cost\_effective
+
+</th>
+
+<th style="text-align:right;">
+
+er
+
+</th>
+
+<th style="text-align:right;">
+
+youden
+
+</th>
+
+<th style="text-align:right;">
+
+cz
+
+</th>
+
+<th style="text-align:right;">
+
+iu
+
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.010
+
+</td>
+
+<td style="text-align:right;">
+
+0.65
+
+</td>
+
+<td style="text-align:right;">
+
+\-4781.56 \[90% HDI:-7109.94, -3105.69\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-75.37 \[90% HDI:-839.92, 45.13\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-108.83 \[90% HDI:-2517.75, 45.13\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1699.91 \[90% HDI:-3267.26, -249.99\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1880.51 \[90% HDI:-3583.79, -169.3\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1860.21 \[90% HDI:-3440.37, -410.81\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1339.08 \[90% HDI:-3212.12, 34.34\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.010
+
+</td>
+
+<td style="text-align:right;">
+
+0.75
+
+</td>
+
+<td style="text-align:right;">
+
+\-4781.56 \[90% HDI:-7109.94, -3105.69\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-75.37 \[90% HDI:-839.92, 45.13\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-84.66 \[90% HDI:-1167.95, 45.13\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1306.69 \[90% HDI:-2620, -253.36\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1331.5 \[90% HDI:-2877.5, -223.72\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1323.18 \[90% HDI:-2667, -223.72\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1146.7 \[90% HDI:-2468.66, 24.38\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.010
+
+</td>
+
+<td style="text-align:right;">
+
+0.85
+
+</td>
+
+<td style="text-align:right;">
+
+\-4781.56 \[90% HDI:-7109.94, -3105.69\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-75.37 \[90% HDI:-839.92, 45.13\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-83.28 \[90% HDI:-821.39, 45.13\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-886.84 \[90% HDI:-1900, -56.38\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-934.27 \[90% HDI:-2170.82, -93.45\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-886.84 \[90% HDI:-1887.74, -51.95\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-838.27 \[90% HDI:-1691.41, -33.17\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.010
+
+</td>
+
+<td style="text-align:right;">
+
+0.95
+
+</td>
+
+<td style="text-align:right;">
+
+\-4781.56 \[90% HDI:-7109.94, -3105.69\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-75.37 \[90% HDI:-839.92, 45.13\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-72.64 \[90% HDI:-705.59, 45.13\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-448.28 \[90% HDI:-1105.03, 1.12\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-458.69 \[90% HDI:-1164.93, 1.12\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-458.69 \[90% HDI:-1126.16, 1.12\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-391.65 \[90% HDI:-855.62, -28.3\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.025
+
+</td>
+
+<td style="text-align:right;">
+
+0.65
+
+</td>
+
+<td style="text-align:right;">
+
+\-4787.59 \[90% HDI:-7101.34, -3100.63\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-271.38 \[90% HDI:-2604.46, 44.56\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-330.58 \[90% HDI:-4199.67, 44.56\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1995.25 \[90% HDI:-3524.94, -556.75\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2238.04 \[90% HDI:-3860.25, -306.66\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2046.79 \[90% HDI:-3585.5, -483.64\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1952.33 \[90% HDI:-4309.91, -609.5\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.025
+
+</td>
+
+<td style="text-align:right;">
+
+0.75
+
+</td>
+
+<td style="text-align:right;">
+
+\-4787.59 \[90% HDI:-7101.34, -3100.63\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-271.38 \[90% HDI:-2604.46, 44.56\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-265.06 \[90% HDI:-2454.08, 44.56\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-1616.34 \[90% HDI:-2925.67, -620.81\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1675.78 \[90% HDI:-3035.63, -201.81\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1684.06 \[90% HDI:-2905.06, -541.16\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1597.32 \[90% HDI:-2952.98, -751.02\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.025
+
+</td>
+
+<td style="text-align:right;">
+
+0.85
+
+</td>
+
+<td style="text-align:right;">
+
+\-4787.59 \[90% HDI:-7101.34, -3100.63\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-271.38 \[90% HDI:-2604.46, 44.56\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-262.41 \[90% HDI:-2359.65, 44.56\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-1149.12 \[90% HDI:-2116.56, -367.03\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1214.24 \[90% HDI:-2365.52, -224.8\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1166.68 \[90% HDI:-2292.96, -330.55\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1147.32 \[90% HDI:-2150.2, -429.21\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.025
+
+</td>
+
+<td style="text-align:right;">
+
+0.95
+
+</td>
+
+<td style="text-align:right;">
+
+\-4787.59 \[90% HDI:-7101.34, -3100.63\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-271.38 \[90% HDI:-2604.46, 44.56\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-220.51 \[90% HDI:-1710.74, 23.76\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-607.91 \[90% HDI:-1331.44, -229.53\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-669.13 \[90% HDI:-1367.14, -143.07\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-662.29 \[90% HDI:-1331.44, -143.07\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-597.12 \[90% HDI:-1202.67, -164.57\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.050
+
+</td>
+
+<td style="text-align:right;">
+
+0.65
+
+</td>
+
+<td style="text-align:right;">
+
+\-4776.97 \[90% HDI:-7085.17, -3089.01\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-578.52 \[90% HDI:-5392.27, 43.75\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-602.61 \[90% HDI:-5392.27, 43.75\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2252.54 \[90% HDI:-4419.22, -853.19\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2423.45 \[90% HDI:-4791.46, -559.36\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2254.01 \[90% HDI:-4350.3, -679.77\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2320.88 \[90% HDI:-4480.57, -924.35\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.050
+
+</td>
+
+<td style="text-align:right;">
+
+0.75
+
+</td>
+
+<td style="text-align:right;">
+
+\-4776.97 \[90% HDI:-7085.17, -3089.01\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-578.52 \[90% HDI:-5392.27, 43.75\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-581.21 \[90% HDI:-5210.54, 38.59\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1890.86 \[90% HDI:-3639.82, -770.71\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2032.19 \[90% HDI:-3863.89, -683.68\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1906.18 \[90% HDI:-3716.09, -729.03\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1888.83 \[90% HDI:-3680.99, -900.21\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.050
+
+</td>
+
+<td style="text-align:right;">
+
+0.85
+
+</td>
+
+<td style="text-align:right;">
+
+\-4776.97 \[90% HDI:-7085.17, -3089.01\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-578.52 \[90% HDI:-5392.27, 43.75\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-546.15 \[90% HDI:-4586.01, 38.59\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-1414.07 \[90% HDI:-2755.65, -524.23\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1506.98 \[90% HDI:-2804.8, -356.36\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1449.39 \[90% HDI:-2917.05, -610.94\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1432.98 \[90% HDI:-2755.65, -623.15\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.050
+
+</td>
+
+<td style="text-align:right;">
+
+0.95
+
+</td>
+
+<td style="text-align:right;">
+
+\-4776.97 \[90% HDI:-7085.17, -3089.01\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-578.52 \[90% HDI:-5392.27, 43.75\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-401.44 \[90% HDI:-2914.26, -14.14\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-825.98 \[90% HDI:-1568.13, -220.52\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-845.14 \[90% HDI:-1758.92, -354.78\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-847.24 \[90% HDI:-1726.16, -354.78\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-798.74 \[90% HDI:-1536.92, -232.73\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.075
+
+</td>
+
+<td style="text-align:right;">
+
+0.65
+
+</td>
+
+<td style="text-align:right;">
+
+\-4763.83 \[90% HDI:-7072.03, -3076.88\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-867.57 \[90% HDI:-8638.96, 42.73\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-931.55 \[90% HDI:-8638.96, 42.73\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2408.6 \[90% HDI:-5267.08, -838.69\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2608.16 \[90% HDI:-5637.43, -835.36\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2423.2 \[90% HDI:-5162.59, -835.36\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2472.22 \[90% HDI:-5208.3, -1061.15\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.075
+
+</td>
+
+<td style="text-align:right;">
+
+0.75
+
+</td>
+
+<td style="text-align:right;">
+
+\-4763.83 \[90% HDI:-7072.03, -3076.88\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-867.57 \[90% HDI:-8638.96, 42.73\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-882.99 \[90% HDI:-8597.44, 38.36\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2011.28 \[90% HDI:-4379.14, -862.99\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2015.89 \[90% HDI:-4584.46, -604.18\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2036.03 \[90% HDI:-4379.14, -796.55\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2012.19 \[90% HDI:-4492.52, -942.34\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.075
+
+</td>
+
+<td style="text-align:right;">
+
+0.85
+
+</td>
+
+<td style="text-align:right;">
+
+\-4763.83 \[90% HDI:-7072.03, -3076.88\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-867.57 \[90% HDI:-8638.96, 42.73\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-828.55 \[90% HDI:-6988.04, 14.21\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-1576.32 \[90% HDI:-3478.38, -721.12\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1605.52 \[90% HDI:-3513.7, -636.65\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1584.92 \[90% HDI:-3513.7, -664.68\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1582.5 \[90% HDI:-3383.98, -599.66\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.075
+
+</td>
+
+<td style="text-align:right;">
+
+0.95
+
+</td>
+
+<td style="text-align:right;">
+
+\-4763.83 \[90% HDI:-7072.03, -3076.88\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-867.57 \[90% HDI:-8638.96, 42.73\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-615.36 \[90% HDI:-3722.57, -83.35\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-1009.09 \[90% HDI:-2052.76, -410.9\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1045.34 \[90% HDI:-2046.95, -334.81\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1025.15 \[90% HDI:-2046.95, -400.44\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-981.16 \[90% HDI:-1996.28, -313.03\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.100
+
+</td>
+
+<td style="text-align:right;">
+
+0.65
+
+</td>
+
+<td style="text-align:right;">
+
+\-4752.46 \[90% HDI:-7060.4, -3064.75\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-1206.59 \[90% HDI:-11180.6, 41.61\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-1212.53 \[90% HDI:-11180.6, 38.01\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2650.51 \[90% HDI:-6332.53, -955.84\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2742.98 \[90% HDI:-6326.81, -737.73\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2643.8 \[90% HDI:-6420.41, -940.12\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2693.63 \[90% HDI:-6518.28, -1159.69\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.100
+
+</td>
+
+<td style="text-align:right;">
+
+0.75
+
+</td>
+
+<td style="text-align:right;">
+
+\-4752.46 \[90% HDI:-7060.4, -3064.75\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1206.59 \[90% HDI:-11180.6, 41.61\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-1170.32 \[90% HDI:-10345.41, 38.01\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-2141.05 \[90% HDI:-4945.27, -957.86\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2195.05 \[90% HDI:-5191.27, -783\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2180.94 \[90% HDI:-5059.35, -921.1\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-2229.24 \[90% HDI:-5309.77, -998.09\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.100
+
+</td>
+
+<td style="text-align:right;">
+
+0.85
+
+</td>
+
+<td style="text-align:right;">
+
+\-4752.46 \[90% HDI:-7060.4, -3064.75\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1206.59 \[90% HDI:-11180.6, 41.61\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-1050.72 \[90% HDI:-7054.92, 11.69\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-1748.07 \[90% HDI:-3925.82, -771.96\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1797.9 \[90% HDI:-3778.51, -609.92\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1761.12 \[90% HDI:-3865.01, -709.64\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1744.17 \[90% HDI:-3839.46, -795.08\]
+
+</td>
+
+</tr>
+
+<tr>
+
+<td style="text-align:right;">
+
+0.100
+
+</td>
+
+<td style="text-align:right;">
+
+0.95
+
+</td>
+
+<td style="text-align:right;">
+
+\-4752.46 \[90% HDI:-7060.4, -3064.75\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1206.59 \[90% HDI:-11180.6, 41.61\]
+
+</td>
+
+<td style="text-align:right;">
+
+<b>-782.88 \[90% HDI:-4256.73, -163.43\]</br>
+
+</td>
+
+<td style="text-align:right;">
+
+\-1152.88 \[90% HDI:-2378.19, -490.18\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1154.08 \[90% HDI:-2337.5, -440.21\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1167.47 \[90% HDI:-2373.73, -468.47\]
+
+</td>
+
+<td style="text-align:right;">
+
+\-1128.42 \[90% HDI:-2343.57, -478.91\]
 
 </td>
 

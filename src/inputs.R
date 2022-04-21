@@ -77,22 +77,20 @@ icu_params <- c(
   list(opp_cost=436*1.03^(2022-2017))
 )
 
-# Estimate additional costs of ICU readmission from Tong et al (2021) World J Surg
-# https://pubmed.ncbi.nlm.nih.gov/33788015/
-readmit <- rnorm(n_samples, 19850, 7595)+50000 #shift by 50k to make all positive
-no_readmit <- rnorm(n_samples, 14916, 3483)+50000
-d_readmit <- fitdist(readmit, "gamma", "mme") #Fit a gamma to each
-d_no_readmit <- fitdist(no_readmit, "gamma", "mme")
-readmit_dist <- rgamma(n_samples, d_readmit$estimate['shape'], d_readmit$estimate['rate'])-50000 #Sample from new gammas
-no_readmit_dist <- rgamma(n_samples, d_no_readmit$estimate['shape'], d_no_readmit$estimate['rate'])-50000
-d_diff <- readmit_dist - no_readmit_dist #Create distribution of differences (normal)
-diff_dist <- fitdist(d_diff, "norm") #Fit normal distribution
+# Estimate additional LOS of ICU readmission from Chen et al (1998) Crit Care Med
+# https://pubmed.ncbi.nlm.nih.gov/9824076/
+mean <- 7.8
+sd <- 13.4
+shape <- (mean^2)/(sd^2)
+scale <- 1/(mean/(sd^2))
+x <- rgamma(n_samples, shape = shape, scale = scale)
+fit <- fitdist(x, "gamma", "mme")
 
 icu_params <- c(
   icu_params,
-  list(icu_readmit_cost=list(
-    mean=diff_dist$estimate['mean'],
-    sd=diff_dist$estimate['sd'],
+  list(icu_readmit_los=list(
+    shape=fit$estimate['shape'],
+    rate=fit$estimate['rate'],
     multiplier=1.03^(2022-2021)
   ))
 )

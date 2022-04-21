@@ -130,16 +130,16 @@ get_nmb_ICU <- function(){
   # Opportunity cost taken from Page et al (2017), BMC HSR
   ICU_opp_cost <- params$icu$opp_cost
   
-  # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
-  ICU_readmit <- rnorm(
+  # ICU readmission LOS taken from Chen et al (1998), Crit Care Med
+  ICU_readmit <- rgamma(
     1, 
-    params$icu$icu_readmit_cost$mean,
-    params$icu$icu_readmit_cost$sd
-  ) * params$icu$icu_readmit_cost$multiplier
+    params$icu$icu_readmit_los$shape,
+    params$icu$icu_readmit_los$rate,
+  )
   
   c(
     "TN"=eff_disch*WTP,
-    "FN"=eff_disch*WTP - ICU_readmit,
+    "FN"=eff_disch*WTP - ICU_readmit*ICU_cost,
     "TP"=-ICU_cost,
     "FP"=-ICU_cost - ICU_opp_cost
   )
@@ -159,12 +159,12 @@ get_nmb_est_ICU <- function() {
    # Opportunity cost taken from Page et al (2017), BMC HSR
   ICU_opp_cost <- params$icu$opp_cost
   
-  # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
-  ICU_readmit <- params$icu$icu_readmit_cost$mean * params$icu$icu_readmit_cost$multiplier
+  # ICU readmission LOS taken from Chen et al (2021), World Journal of Surgery
+  ICU_readmit <- 7.8
     
   c(
     "TN"=eff_disch*WTP,
-    "FN"=eff_disch*WTP - unname(ICU_readmit),
+    "FN"=eff_disch*WTP - unname(ICU_readmit)*ICU_cost,
     "TP"=-ICU_cost,
     "FP"=-ICU_cost - ICU_opp_cost
   )
