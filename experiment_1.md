@@ -1,6 +1,6 @@
 Experiment 1
 ================
-20 April, 2022
+21 April, 2022
 
 Question: What are the differences in NMB between models where the
 Probability threshold was based on the currently available methods
@@ -9,27 +9,27 @@ versus costs-based selection. (Hospital falls as a use case.)
 1.  Define costs of a TP, TN, FP, FN of falls classification (option to
     move this into the loop where costs are sampled from a distributions
     to account for uncertainty in their estimates in the literature)
-    -   FP have cost of applying intervention
-    -   FN have cost of patient fall
-    -   TP have cost of intervention + cost of fall\*(1-effectiveness of
+      - FP have cost of applying intervention
+      - FN have cost of patient fall
+      - TP have cost of intervention + cost of fall\*(1-effectiveness of
         intervention on rate of falls)
-    -   TN are cost $0
+      - TN are cost $0
 2.  Select appropriate ranges for model AUC (\~0.75?) and prevalence
     (\~3%) for comparable clinical prediction model for falls.
 3.  For sample sizes (N) in \[100, 500, 1000\]: (repeat 500 times at
     each sample size)
-    -   Get training data by sampling observed predictor values and
+      - Get training data by sampling observed predictor values and
         outcome by transforming AUC into Cohens’ D and sampling from two
         normal distributions, the first (negative events) with mean=0
         and the second (positive events) with mean=Cohens’D. (Both with
         sd=1.)
-    -   Fit a logistic regression model using this sampled data.
-    -   Fit predicted probabilities to the training data and use these
+      - Fit a logistic regression model using this sampled data.
+      - Fit predicted probabilities to the training data and use these
         to obtain probability thresholds using each method.
-    -   Get validation data using the same approach but with n=1000.
-    -   Use the previously fit model to estimate probabilities for
+      - Get validation data using the same approach but with n=1000.
+      - Use the previously fit model to estimate probabilities for
         validation data.
-    -   Evaluate the thresholds selected using the training data on the
+      - Evaluate the thresholds selected using the training data on the
         validation data, in terms of mean cost per patient.
 4.  Measure differences in NMB on validation sample dependent on use of
     currently available methods and cost-based approach to determine
@@ -37,6 +37,8 @@ versus costs-based selection. (Hospital falls as a use case.)
 5.  Observe whether this relationship is dependent on the sample size
     taken
 6.  ???
+
+<!-- end list -->
 
 ``` r
 get_nmb <- function(){
@@ -142,14 +144,40 @@ get_nmb_ICU <- function(){
     "TN"=eff_disch*WTP,
     "FN"=eff_disch*WTP - ICU_readmit,
     "TP"=-ICU_cost,
-    "FP"=-ICU_cost + ICU_opp_cost
+    "FP"=-ICU_cost - ICU_opp_cost
   )
 }
 get_nmb_ICU()
 ```
 
     ##         TN         FN         TP         FP 
-    ##    28.6307  8234.2848 -4132.5328 -3627.0893
+    ##    28.6307  8234.2848 -4132.5328 -4637.9763
+
+``` r
+# Repeat point estimate replacement for ICU
+get_nmb_est_ICU <- function() {
+  WTP <- params$global$WTP
+  
+  # Treatment effect taken from de Vos et al (2022), Value in Health
+  eff_disch <- 0.42
+  
+  # ICU occupancy cost taken from Hicks et al (2019), MJA
+  ICU_cost <- 4375*params$icu$icu_cost$multiplier
+  
+   # Opportunity cost taken from Page et al (2017), BMC HSR
+  ICU_opp_cost <- params$icu$opp_cost
+  
+  # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
+  ICU_readmit <- params$icu$icu_readmit_cost$mean * params$icu$icu_readmit_cost$multiplier
+    
+  c(
+    "TN"=eff_disch*WTP,
+    "FN"=eff_disch*WTP - unname(ICU_readmit),
+    "TP"=-ICU_cost,
+    "FP"=-ICU_cost - ICU_opp_cost
+  )
+}
+```
 
 ### Run simulation
 
@@ -290,7 +318,7 @@ g <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g", "get_nmb", "get_nmb_est", "get_nmb_ICU", "params", "simulation_config")
+  c("do_simulation", "g", "get_nmb", "get_nmb_est", "get_nmb_ICU", "get_nmb_est_ICU", "params", "simulation_config")
 })
 
 invisible(clusterEvalQ(cl, {
@@ -328,7 +356,7 @@ ll2 <- parallel::parLapply(
     n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
     return_data=F, return_plot=T, return_summary=T,
-    fx_costs_training=get_nmb_ICU, fx_costs_evaluation=get_nmb_ICU,
+    fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
     plot_type="density", scale=400
   )
 )
@@ -381,619 +409,1233 @@ df_summaries %>%
 ```
 
 <table class="table table-condensed">
+
 <thead>
+
 <tr>
+
 <th style="text-align:right;">
+
 event\_rate
+
 </th>
+
 <th style="text-align:right;">
+
 sim\_auc
+
 </th>
+
 <th style="text-align:right;">
+
 treat\_all
+
 </th>
+
 <th style="text-align:right;">
+
 treat\_none
+
 </th>
+
 <th style="text-align:right;">
+
 cost\_effective
+
 </th>
+
 <th style="text-align:right;">
+
 er
+
 </th>
+
 <th style="text-align:right;">
+
 youden
+
 </th>
+
 <th style="text-align:right;">
+
 cz
+
 </th>
+
 <th style="text-align:right;">
+
 iu
+
 </th>
+
 </tr>
+
 </thead>
+
 <tbody>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.010
+
 </td>
+
 <td style="text-align:right;">
+
 0.65
+
 </td>
+
 <td style="text-align:right;">
--432.26 \[90% HDI:-467.8, -402.11\]
+
+\-432.26 \[90% HDI:-467.8, -402.11\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-81.09 \[90% HDI:-132.59, -40.61\]</br>
+
 </td>
+
 <td style="text-align:right;">
--87.62 \[90% HDI:-408.37, -36.81\]
+
+\-87.62 \[90% HDI:-408.37, -36.81\]
+
 </td>
+
 <td style="text-align:right;">
--182.02 \[90% HDI:-288.8, -102.01\]
+
+\-182.02 \[90% HDI:-288.8, -102.01\]
+
 </td>
+
 <td style="text-align:right;">
--200.43 \[90% HDI:-316.25, -85.05\]
+
+\-200.43 \[90% HDI:-316.25, -85.05\]
+
 </td>
+
 <td style="text-align:right;">
--198.73 \[90% HDI:-300.15, -111.09\]
+
+\-198.73 \[90% HDI:-300.15, -111.09\]
+
 </td>
+
 <td style="text-align:right;">
--164.85 \[90% HDI:-299.04, -63.73\]
+
+\-164.85 \[90% HDI:-299.04, -63.73\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.010
+
 </td>
+
 <td style="text-align:right;">
+
 0.75
+
 </td>
+
 <td style="text-align:right;">
--432.26 \[90% HDI:-467.8, -402.11\]
+
+\-432.26 \[90% HDI:-467.8, -402.11\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-81.09 \[90% HDI:-132.59, -40.61\]</br>
+
 </td>
+
 <td style="text-align:right;">
--82.57 \[90% HDI:-139.09, -46.48\]
+
+\-82.57 \[90% HDI:-139.09, -46.48\]
+
 </td>
+
 <td style="text-align:right;">
--161.36 \[90% HDI:-231.73, -78.23\]
+
+\-161.36 \[90% HDI:-231.73, -78.23\]
+
 </td>
+
 <td style="text-align:right;">
--162.99 \[90% HDI:-254.93, -77.84\]
+
+\-162.99 \[90% HDI:-254.93, -77.84\]
+
 </td>
+
 <td style="text-align:right;">
--162.44 \[90% HDI:-236.36, -77.2\]
+
+\-162.44 \[90% HDI:-236.36, -77.2\]
+
 </td>
+
 <td style="text-align:right;">
--148.75 \[90% HDI:-233.48, -59.89\]
+
+\-148.75 \[90% HDI:-233.48, -59.89\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.010
+
 </td>
+
 <td style="text-align:right;">
+
 0.85
+
 </td>
+
 <td style="text-align:right;">
--432.26 \[90% HDI:-467.8, -402.11\]
+
+\-432.26 \[90% HDI:-467.8, -402.11\]
+
 </td>
+
 <td style="text-align:right;">
--81.09 \[90% HDI:-132.59, -40.61\]
+
+\-81.09 \[90% HDI:-132.59, -40.61\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-80.75 \[90% HDI:-129.93, -43.31\]</br>
+
 </td>
+
 <td style="text-align:right;">
--128.58 \[90% HDI:-191.1, -66.23\]
+
+\-128.58 \[90% HDI:-191.1, -66.23\]
+
 </td>
+
 <td style="text-align:right;">
--135.18 \[90% HDI:-208.11, -62.78\]
+
+\-135.18 \[90% HDI:-208.11, -62.78\]
+
 </td>
+
 <td style="text-align:right;">
--130.4 \[90% HDI:-190.91, -56.49\]
+
+\-130.4 \[90% HDI:-190.91, -56.49\]
+
 </td>
+
 <td style="text-align:right;">
--124.33 \[90% HDI:-188.04, -58.02\]
+
+\-124.33 \[90% HDI:-188.04, -58.02\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.010
+
 </td>
+
 <td style="text-align:right;">
+
 0.95
+
 </td>
+
 <td style="text-align:right;">
--432.26 \[90% HDI:-467.8, -402.11\]
+
+\-432.26 \[90% HDI:-467.8, -402.11\]
+
 </td>
+
 <td style="text-align:right;">
--81.09 \[90% HDI:-132.59, -40.61\]
+
+\-81.09 \[90% HDI:-132.59, -40.61\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-73.65 \[90% HDI:-118.92, -39.95\]</br>
+
 </td>
+
 <td style="text-align:right;">
--90.95 \[90% HDI:-148.7, -49.9\]
+
+\-90.95 \[90% HDI:-148.7, -49.9\]
+
 </td>
+
 <td style="text-align:right;">
--90.67 \[90% HDI:-149.96, -46.34\]
+
+\-90.67 \[90% HDI:-149.96, -46.34\]
+
 </td>
+
 <td style="text-align:right;">
--90.67 \[90% HDI:-149.96, -46.34\]
+
+\-90.67 \[90% HDI:-149.96, -46.34\]
+
 </td>
+
 <td style="text-align:right;">
--89.12 \[90% HDI:-135.16, -43.06\]
+
+\-89.12 \[90% HDI:-135.16, -43.06\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.025
+
 </td>
+
 <td style="text-align:right;">
+
 0.65
+
 </td>
+
 <td style="text-align:right;">
--508.74 \[90% HDI:-592.63, -443.23\]
+
+\-508.74 \[90% HDI:-592.63, -443.23\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-211.09 \[90% HDI:-320.14, -126.64\]</br>
+
 </td>
+
 <td style="text-align:right;">
--215.95 \[90% HDI:-334.04, -112.47\]
+
+\-215.95 \[90% HDI:-334.04, -112.47\]
+
 </td>
+
 <td style="text-align:right;">
--302.48 \[90% HDI:-404.87, -215.82\]
+
+\-302.48 \[90% HDI:-404.87, -215.82\]
+
 </td>
+
 <td style="text-align:right;">
--313.56 \[90% HDI:-434.48, -201.86\]
+
+\-313.56 \[90% HDI:-434.48, -201.86\]
+
 </td>
+
 <td style="text-align:right;">
--308.24 \[90% HDI:-404.87, -214.66\]
+
+\-308.24 \[90% HDI:-404.87, -214.66\]
+
 </td>
+
 <td style="text-align:right;">
--307.97 \[90% HDI:-418.89, -218.65\]
+
+\-307.97 \[90% HDI:-418.89, -218.65\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.025
+
 </td>
+
 <td style="text-align:right;">
+
 0.75
+
 </td>
+
 <td style="text-align:right;">
--508.74 \[90% HDI:-592.63, -443.23\]
+
+\-508.74 \[90% HDI:-592.63, -443.23\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-211.09 \[90% HDI:-320.14, -126.64\]</br>
+
 </td>
+
 <td style="text-align:right;">
--211.98 \[90% HDI:-324.88, -130.72\]
+
+\-211.98 \[90% HDI:-324.88, -130.72\]
+
 </td>
+
 <td style="text-align:right;">
--272.23 \[90% HDI:-368.58, -188.69\]
+
+\-272.23 \[90% HDI:-368.58, -188.69\]
+
 </td>
+
 <td style="text-align:right;">
--279.32 \[90% HDI:-398.59, -185.51\]
+
+\-279.32 \[90% HDI:-398.59, -185.51\]
+
 </td>
+
 <td style="text-align:right;">
--272.7 \[90% HDI:-369.53, -190.12\]
+
+\-272.7 \[90% HDI:-369.53, -190.12\]
+
 </td>
+
 <td style="text-align:right;">
--271.9 \[90% HDI:-382.97, -201.07\]
+
+\-271.9 \[90% HDI:-382.97, -201.07\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.025
+
 </td>
+
 <td style="text-align:right;">
+
 0.85
+
 </td>
+
 <td style="text-align:right;">
--508.74 \[90% HDI:-592.63, -443.23\]
+
+\-508.74 \[90% HDI:-592.63, -443.23\]
+
 </td>
+
 <td style="text-align:right;">
--211.09 \[90% HDI:-320.14, -126.64\]
+
+\-211.09 \[90% HDI:-320.14, -126.64\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-195.7 \[90% HDI:-303.67, -131.18\]</br>
+
 </td>
+
 <td style="text-align:right;">
--235.28 \[90% HDI:-323.5, -148.28\]
+
+\-235.28 \[90% HDI:-323.5, -148.28\]
+
 </td>
+
 <td style="text-align:right;">
--238.57 \[90% HDI:-333.8, -145.41\]
+
+\-238.57 \[90% HDI:-333.8, -145.41\]
+
 </td>
+
 <td style="text-align:right;">
--240.33 \[90% HDI:-326.23, -147.54\]
+
+\-240.33 \[90% HDI:-326.23, -147.54\]
+
 </td>
+
 <td style="text-align:right;">
--235.19 \[90% HDI:-319.27, -157.04\]
+
+\-235.19 \[90% HDI:-319.27, -157.04\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.025
+
 </td>
+
 <td style="text-align:right;">
+
 0.95
+
 </td>
+
 <td style="text-align:right;">
--508.74 \[90% HDI:-592.63, -443.23\]
+
+\-508.74 \[90% HDI:-592.63, -443.23\]
+
 </td>
+
 <td style="text-align:right;">
--211.09 \[90% HDI:-320.14, -126.64\]
+
+\-211.09 \[90% HDI:-320.14, -126.64\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-175.43 \[90% HDI:-262.74, -106\]</br>
+
 </td>
+
 <td style="text-align:right;">
--187.76 \[90% HDI:-262.63, -110.78\]
+
+\-187.76 \[90% HDI:-262.63, -110.78\]
+
 </td>
+
 <td style="text-align:right;">
--194.92 \[90% HDI:-269.24, -111.26\]
+
+\-194.92 \[90% HDI:-269.24, -111.26\]
+
 </td>
+
 <td style="text-align:right;">
--190.6 \[90% HDI:-269.24, -111.26\]
+
+\-190.6 \[90% HDI:-269.24, -111.26\]
+
 </td>
+
 <td style="text-align:right;">
--188.16 \[90% HDI:-274.49, -112.75\]
+
+\-188.16 \[90% HDI:-274.49, -112.75\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.050
+
 </td>
+
 <td style="text-align:right;">
+
 0.65
+
 </td>
+
 <td style="text-align:right;">
--642.1 \[90% HDI:-781.61, -506.49\]
+
+\-642.1 \[90% HDI:-781.61, -506.49\]
+
 </td>
+
 <td style="text-align:right;">
--427.71 \[90% HDI:-625.19, -282.26\]
+
+\-427.71 \[90% HDI:-625.19, -282.26\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-424.55 \[90% HDI:-604.01, -274.76\]</br>
+
 </td>
+
 <td style="text-align:right;">
--472.38 \[90% HDI:-631.55, -347.38\]
+
+\-472.38 \[90% HDI:-631.55, -347.38\]
+
 </td>
+
 <td style="text-align:right;">
--485.42 \[90% HDI:-644.82, -336.98\]
+
+\-485.42 \[90% HDI:-644.82, -336.98\]
+
 </td>
+
 <td style="text-align:right;">
--475.25 \[90% HDI:-627.85, -334.1\]
+
+\-475.25 \[90% HDI:-627.85, -334.1\]
+
 </td>
+
 <td style="text-align:right;">
--477.2 \[90% HDI:-631.72, -344.22\]
+
+\-477.2 \[90% HDI:-631.72, -344.22\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.050
+
 </td>
+
 <td style="text-align:right;">
+
 0.75
+
 </td>
+
 <td style="text-align:right;">
--642.1 \[90% HDI:-781.61, -506.49\]
+
+\-642.1 \[90% HDI:-781.61, -506.49\]
+
 </td>
+
 <td style="text-align:right;">
--427.71 \[90% HDI:-625.19, -282.26\]
+
+\-427.71 \[90% HDI:-625.19, -282.26\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-412.13 \[90% HDI:-593.58, -283.28\]</br>
+
 </td>
+
 <td style="text-align:right;">
--437.56 \[90% HDI:-595.72, -308.39\]
+
+\-437.56 \[90% HDI:-595.72, -308.39\]
+
 </td>
+
 <td style="text-align:right;">
--442.3 \[90% HDI:-598.48, -301.34\]
+
+\-442.3 \[90% HDI:-598.48, -301.34\]
+
 </td>
+
 <td style="text-align:right;">
--437.81 \[90% HDI:-588.11, -305.92\]
+
+\-437.81 \[90% HDI:-588.11, -305.92\]
+
 </td>
+
 <td style="text-align:right;">
--436.01 \[90% HDI:-591.66, -301.73\]
+
+\-436.01 \[90% HDI:-591.66, -301.73\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.050
+
 </td>
+
 <td style="text-align:right;">
+
 0.85
+
 </td>
+
 <td style="text-align:right;">
--642.1 \[90% HDI:-781.61, -506.49\]
+
+\-642.1 \[90% HDI:-781.61, -506.49\]
+
 </td>
+
 <td style="text-align:right;">
--427.71 \[90% HDI:-625.19, -282.26\]
+
+\-427.71 \[90% HDI:-625.19, -282.26\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-380.01 \[90% HDI:-535.64, -248.18\]</br>
+
 </td>
+
 <td style="text-align:right;">
--390.52 \[90% HDI:-535.49, -255.79\]
+
+\-390.52 \[90% HDI:-535.49, -255.79\]
+
 </td>
+
 <td style="text-align:right;">
--396.37 \[90% HDI:-539.05, -256.3\]
+
+\-396.37 \[90% HDI:-539.05, -256.3\]
+
 </td>
+
 <td style="text-align:right;">
--395.38 \[90% HDI:-535.11, -250.68\]
+
+\-395.38 \[90% HDI:-535.11, -250.68\]
+
 </td>
+
 <td style="text-align:right;">
--395.15 \[90% HDI:-537.41, -255.24\]
+
+\-395.15 \[90% HDI:-537.41, -255.24\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.050
+
 </td>
+
 <td style="text-align:right;">
+
 0.95
+
 </td>
+
 <td style="text-align:right;">
--642.1 \[90% HDI:-781.61, -506.49\]
+
+\-642.1 \[90% HDI:-781.61, -506.49\]
+
 </td>
+
 <td style="text-align:right;">
--427.71 \[90% HDI:-625.19, -282.26\]
+
+\-427.71 \[90% HDI:-625.19, -282.26\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-332.57 \[90% HDI:-489.85, -209.34\]</br>
+
 </td>
+
 <td style="text-align:right;">
--338.87 \[90% HDI:-486.64, -207.87\]
+
+\-338.87 \[90% HDI:-486.64, -207.87\]
+
 </td>
+
 <td style="text-align:right;">
--342.98 \[90% HDI:-485.81, -212.56\]
+
+\-342.98 \[90% HDI:-485.81, -212.56\]
+
 </td>
+
 <td style="text-align:right;">
--339.21 \[90% HDI:-489.57, -212.56\]
+
+\-339.21 \[90% HDI:-489.57, -212.56\]
+
 </td>
+
 <td style="text-align:right;">
--335.03 \[90% HDI:-496.94, -214.86\]
+
+\-335.03 \[90% HDI:-496.94, -214.86\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.075
+
 </td>
+
 <td style="text-align:right;">
+
 0.65
+
 </td>
+
 <td style="text-align:right;">
--770.34 \[90% HDI:-972.69, -596.97\]
+
+\-770.34 \[90% HDI:-972.69, -596.97\]
+
 </td>
+
 <td style="text-align:right;">
--635.5 \[90% HDI:-882.83, -430.23\]
+
+\-635.5 \[90% HDI:-882.83, -430.23\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-629.1 \[90% HDI:-890.37, -470\]</br>
+
 </td>
+
 <td style="text-align:right;">
--642.31 \[90% HDI:-859.76, -476.78\]
+
+\-642.31 \[90% HDI:-859.76, -476.78\]
+
 </td>
+
 <td style="text-align:right;">
--644.62 \[90% HDI:-853.74, -463.21\]
+
+\-644.62 \[90% HDI:-853.74, -463.21\]
+
 </td>
+
 <td style="text-align:right;">
--639.44 \[90% HDI:-859.8, -476.78\]
+
+\-639.44 \[90% HDI:-859.8, -476.78\]
+
 </td>
+
 <td style="text-align:right;">
--648.51 \[90% HDI:-858.01, -474.82\]
+
+\-648.51 \[90% HDI:-858.01, -474.82\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.075
+
 </td>
+
 <td style="text-align:right;">
+
 0.75
+
 </td>
+
 <td style="text-align:right;">
--770.34 \[90% HDI:-972.69, -596.97\]
+
+\-770.34 \[90% HDI:-972.69, -596.97\]
+
 </td>
+
 <td style="text-align:right;">
--635.5 \[90% HDI:-882.83, -430.23\]
+
+\-635.5 \[90% HDI:-882.83, -430.23\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-592.01 \[90% HDI:-804.82, -404.08\]</br>
+
 </td>
+
 <td style="text-align:right;">
--599.55 \[90% HDI:-810.14, -425.73\]
+
+\-599.55 \[90% HDI:-810.14, -425.73\]
+
 </td>
+
 <td style="text-align:right;">
--600.39 \[90% HDI:-817.84, -431.98\]
+
+\-600.39 \[90% HDI:-817.84, -431.98\]
+
 </td>
+
 <td style="text-align:right;">
--598.5 \[90% HDI:-810.14, -426.16\]
+
+\-598.5 \[90% HDI:-810.14, -426.16\]
+
 </td>
+
 <td style="text-align:right;">
--603.42 \[90% HDI:-815.98, -432.93\]
+
+\-603.42 \[90% HDI:-815.98, -432.93\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.075
+
 </td>
+
 <td style="text-align:right;">
+
 0.85
+
 </td>
+
 <td style="text-align:right;">
--770.34 \[90% HDI:-972.69, -596.97\]
+
+\-770.34 \[90% HDI:-972.69, -596.97\]
+
 </td>
+
 <td style="text-align:right;">
--635.5 \[90% HDI:-882.83, -430.23\]
+
+\-635.5 \[90% HDI:-882.83, -430.23\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-544.01 \[90% HDI:-748.77, -371.45\]</br>
+
 </td>
+
 <td style="text-align:right;">
--548.09 \[90% HDI:-761.36, -382.86\]
+
+\-548.09 \[90% HDI:-761.36, -382.86\]
+
 </td>
+
 <td style="text-align:right;">
--547.09 \[90% HDI:-760.6, -375.86\]
+
+\-547.09 \[90% HDI:-760.6, -375.86\]
+
 </td>
+
 <td style="text-align:right;">
--547.7 \[90% HDI:-760.6, -381.14\]
+
+\-547.7 \[90% HDI:-760.6, -381.14\]
+
 </td>
+
 <td style="text-align:right;">
--549.16 \[90% HDI:-770.31, -389.76\]
+
+\-549.16 \[90% HDI:-770.31, -389.76\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.075
+
 </td>
+
 <td style="text-align:right;">
+
 0.95
+
 </td>
+
 <td style="text-align:right;">
--770.34 \[90% HDI:-972.69, -596.97\]
+
+\-770.34 \[90% HDI:-972.69, -596.97\]
+
 </td>
+
 <td style="text-align:right;">
--635.5 \[90% HDI:-882.83, -430.23\]
+
+\-635.5 \[90% HDI:-882.83, -430.23\]
+
 </td>
+
 <td style="text-align:right;">
--488.36 \[90% HDI:-694.91, -313.35\]
+
+\-488.36 \[90% HDI:-694.91, -313.35\]
+
 </td>
+
 <td style="text-align:right;">
--486.38 \[90% HDI:-696.71, -313.09\]
+
+\-486.38 \[90% HDI:-696.71, -313.09\]
+
 </td>
+
 <td style="text-align:right;">
--486.18 \[90% HDI:-696.71, -314.29\]
+
+\-486.18 \[90% HDI:-696.71, -314.29\]
+
 </td>
+
 <td style="text-align:right;">
--486.18 \[90% HDI:-696.71, -314.29\]
+
+\-486.18 \[90% HDI:-696.71, -314.29\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-483.02 \[90% HDI:-695.39, -315.44\]</br>
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.100
+
 </td>
+
 <td style="text-align:right;">
+
 0.65
+
 </td>
+
 <td style="text-align:right;">
--898.39 \[90% HDI:-1172.23, -661.01\]
+
+\-898.39 \[90% HDI:-1172.23, -661.01\]
+
 </td>
+
 <td style="text-align:right;">
--861.75 \[90% HDI:-1194.56, -600.78\]
+
+\-861.75 \[90% HDI:-1194.56, -600.78\]
+
 </td>
+
 <td style="text-align:right;">
--819.12 \[90% HDI:-1087.72, -583.57\]
+
+\-819.12 \[90% HDI:-1087.72, -583.57\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-806.31 \[90% HDI:-1088.03, -585.97\]</br>
+
 </td>
+
 <td style="text-align:right;">
--815.01 \[90% HDI:-1088.03, -579.01\]
+
+\-815.01 \[90% HDI:-1088.03, -579.01\]
+
 </td>
+
 <td style="text-align:right;">
--807 \[90% HDI:-1075.39, -578.31\]
+
+\-807 \[90% HDI:-1075.39, -578.31\]
+
 </td>
+
 <td style="text-align:right;">
--811.94 \[90% HDI:-1111.14, -610.83\]
+
+\-811.94 \[90% HDI:-1111.14, -610.83\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.100
+
 </td>
+
 <td style="text-align:right;">
+
 0.75
+
 </td>
+
 <td style="text-align:right;">
--898.39 \[90% HDI:-1172.23, -661.01\]
+
+\-898.39 \[90% HDI:-1172.23, -661.01\]
+
 </td>
+
 <td style="text-align:right;">
--861.75 \[90% HDI:-1194.56, -600.78\]
+
+\-861.75 \[90% HDI:-1194.56, -600.78\]
+
 </td>
+
 <td style="text-align:right;">
--765.49 \[90% HDI:-1036.62, -525.04\]
+
+\-765.49 \[90% HDI:-1036.62, -525.04\]
+
 </td>
+
 <td style="text-align:right;">
--759.31 \[90% HDI:-1035.48, -532.23\]
+
+\-759.31 \[90% HDI:-1035.48, -532.23\]
+
 </td>
+
 <td style="text-align:right;">
--758.75 \[90% HDI:-1031.96, -535.17\]
+
+\-758.75 \[90% HDI:-1031.96, -535.17\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-758.5 \[90% HDI:-1035.48, -531.78\]</br>
+
 </td>
+
 <td style="text-align:right;">
--762.74 \[90% HDI:-1022.11, -526.84\]
+
+\-762.74 \[90% HDI:-1022.11, -526.84\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.100
+
 </td>
+
 <td style="text-align:right;">
+
 0.85
+
 </td>
+
 <td style="text-align:right;">
--898.39 \[90% HDI:-1172.23, -661.01\]
+
+\-898.39 \[90% HDI:-1172.23, -661.01\]
+
 </td>
+
 <td style="text-align:right;">
--861.75 \[90% HDI:-1194.56, -600.78\]
+
+\-861.75 \[90% HDI:-1194.56, -600.78\]
+
 </td>
+
 <td style="text-align:right;">
--712.57 \[90% HDI:-948.34, -462.71\]
+
+\-712.57 \[90% HDI:-948.34, -462.71\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-710.56 \[90% HDI:-976.54, -482.36\]</br>
+
 </td>
+
 <td style="text-align:right;">
--718.54 \[90% HDI:-961.59, -470.45\]
+
+\-718.54 \[90% HDI:-961.59, -470.45\]
+
 </td>
+
 <td style="text-align:right;">
--712.41 \[90% HDI:-976.54, -481.67\]
+
+\-712.41 \[90% HDI:-976.54, -481.67\]
+
 </td>
+
 <td style="text-align:right;">
--710.8 \[90% HDI:-977.31, -478.92\]
+
+\-710.8 \[90% HDI:-977.31, -478.92\]
+
 </td>
+
 </tr>
+
 <tr>
+
 <td style="text-align:right;">
+
 0.100
+
 </td>
+
 <td style="text-align:right;">
+
 0.95
+
 </td>
+
 <td style="text-align:right;">
--898.39 \[90% HDI:-1172.23, -661.01\]
+
+\-898.39 \[90% HDI:-1172.23, -661.01\]
+
 </td>
+
 <td style="text-align:right;">
--861.75 \[90% HDI:-1194.56, -600.78\]
+
+\-861.75 \[90% HDI:-1194.56, -600.78\]
+
 </td>
+
 <td style="text-align:right;">
--637.67 \[90% HDI:-887.87, -377.67\]
+
+\-637.67 \[90% HDI:-887.87, -377.67\]
+
 </td>
+
 <td style="text-align:right;">
--640.98 \[90% HDI:-913.29, -409.06\]
+
+\-640.98 \[90% HDI:-913.29, -409.06\]
+
 </td>
+
 <td style="text-align:right;">
+
 <b>-636.5 \[90% HDI:-886.12, -382.09\]</br>
+
 </td>
+
 <td style="text-align:right;">
--636.5 \[90% HDI:-886.12, -382.09\]
+
+\-636.5 \[90% HDI:-886.12, -382.09\]
+
 </td>
+
 <td style="text-align:right;">
--636.95 \[90% HDI:-913.93, -408.79\]
+
+\-636.95 \[90% HDI:-913.93, -408.79\]
+
 </td>
+
 </tr>
+
 </tbody>
+
 </table>
 
 ``` r
@@ -1008,7 +1650,7 @@ g2 <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g2", "get_nmb", "get_nmb_est", "params")
+  c("do_simulation", "g2", "get_nmb", "get_nmb_est", "get_nmb_ICU", "get_nmb_est_ICU", "params")
 })
 
 invisible(clusterEvalQ(cl, {
@@ -1038,7 +1680,27 @@ ll3 <- parallel::parLapply(
   )
 )
 
+ll4 <- parallel::parLapply(
+  cl,
+  1:nrow(g),
+  function(i) do_simulation(
+    sample_size=g2$train_size[i],
+    n_sims=30,
+    n_valid=5000,
+    sim_auc=g2$sim_auc[i], event_rate=0.025,
+    return_data=F, return_plot=T, return_summary=T,
+    fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
+    plot_type="density", scale=60
+  )
+)
+
 cowplot::plot_grid(plotlist=extract_plots(ll3), ncol=length(unique(g2$sim_auc)))
 ```
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+
+``` r
+cowplot::plot_grid(plotlist=extract_plots(ll4), ncol=length(unique(g2$sim_auc)))
+```
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->

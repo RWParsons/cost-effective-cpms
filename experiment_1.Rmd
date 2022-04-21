@@ -146,6 +146,29 @@ get_nmb_ICU <- function(){
 }
 get_nmb_ICU()
 
+# Repeat point estimate replacement for ICU
+get_nmb_est_ICU <- function() {
+  WTP <- params$global$WTP
+  
+  # Treatment effect taken from de Vos et al (2022), Value in Health
+  eff_disch <- 0.42
+  
+  # ICU occupancy cost taken from Hicks et al (2019), MJA
+  ICU_cost <- 4375*params$icu$icu_cost$multiplier
+  
+   # Opportunity cost taken from Page et al (2017), BMC HSR
+  ICU_opp_cost <- params$icu$opp_cost
+  
+  # ICU readmission cost taken from Tong et al (2021), World Journal of Surgery
+  ICU_readmit <- params$icu$icu_readmit_cost$mean * params$icu$icu_readmit_cost$multiplier
+    
+  c(
+    "TN"=eff_disch*WTP,
+    "FN"=eff_disch*WTP - unname(ICU_readmit),
+    "TP"=-ICU_cost,
+    "FP"=-ICU_cost - ICU_opp_cost
+  )
+}
 ```
 
 
@@ -369,7 +392,7 @@ g <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g", "get_nmb", "get_nmb_est", "get_nmb_ICU", "params", "simulation_config")
+  c("do_simulation", "g", "get_nmb", "get_nmb_est", "get_nmb_ICU", "get_nmb_est_ICU", "params", "simulation_config")
 })
 
 invisible(clusterEvalQ(cl, {
@@ -407,7 +430,7 @@ ll2 <- parallel::parLapply(
     n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
     return_data=F, return_plot=T, return_summary=T,
-    fx_costs_training=get_nmb_ICU, fx_costs_evaluation=get_nmb_ICU,
+    fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
     plot_type="density", scale=400
   )
 )
@@ -431,6 +454,18 @@ df_summaries %>%
   formattable() %>%
   kable_styling() 
 
+df_summaries_ICU <- rbindlist(extract_summaries(ll2)) %>%
+  group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
+  mutate(.group_id=cur_group_id()) %>%
+  ungroup()
+
+df_summaries_ICU %>%
+  select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
+  select(event_rate, sim_auc, everything()) %>%
+  pivot_wider(names_from="method", values_from="summary") %>% 
+  formattable() %>%
+  kable_styling() 
+
 ```
 
 ```{r, fig.height=24, fig.width=12}
@@ -446,7 +481,7 @@ g2 <- expand.grid(
 )
 
 clusterExport(cl, {
-  c("do_simulation", "g2", "get_nmb", "get_nmb_est", "params")
+  c("do_simulation", "g2", "get_nmb", "get_nmb_est", "get_nmb_ICU", "get_nmb_est_ICU", "params")
 })
 
 invisible(clusterEvalQ(cl, {
@@ -476,7 +511,23 @@ ll3 <- parallel::parLapply(
   )
 )
 
+ll4 <- parallel::parLapply(
+  cl,
+  1:nrow(g),
+  function(i) do_simulation(
+    sample_size=g2$train_size[i],
+    n_sims=30,
+    n_valid=5000,
+    sim_auc=g2$sim_auc[i], event_rate=0.025,
+    return_data=F, return_plot=T, return_summary=T,
+    fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
+    plot_type="density", scale=60
+  )
+)
+
 cowplot::plot_grid(plotlist=extract_plots(ll3), ncol=length(unique(g2$sim_auc)))
+cowplot::plot_grid(plotlist=extract_plots(ll4), ncol=length(unique(g2$sim_auc)))
+
 ```
 
 
