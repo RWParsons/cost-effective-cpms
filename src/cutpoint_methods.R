@@ -37,3 +37,14 @@ fx_prod_sn_sp <- function(tp, fp, tn, fn, ...) {
   colnames(prod_sn_sp) <- "prod_sn_sp"
   prod_sn_sp
 }
+
+roc_iu <- function(tp, fp, tn, fn, .roc_curve, ...) {
+  tempauc <- auc(.roc_curve)
+  sens <- sensitivity(tp = tp, fn = fn)
+  spec <- specificity(fp = fp, tn = tn)
+  iu <- abs(sens - tempauc) + abs(spec - tempauc)
+  iu <- matrix(iu, ncol = 1)
+  colnames(iu) <- "roc_iu"
+  return(iu)
+}
+

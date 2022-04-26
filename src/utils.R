@@ -103,7 +103,7 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
   if(length(pt_er) > 1) {
     pt_er <- median(pt_er)
   }
-  # pt_youden <- pROC::coords(rocobj, "best", best.method="youden")$threshold
+
   pt_youden <- cutpointr(
     x=predicted, class=actual, method=maximize_metric, metric=youden,
     silent=TRUE
@@ -112,24 +112,6 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
     pt_youden <- 1
   }
 
-  f <- function(pt){
-    # new threshold selection methods are from here: https://www.hindawi.com/journals/cmmm/2017/3762651/
-    cm <- get_confusion(predicted=predicted, actual=actual, pt=pt)
-    data.frame(
-      pt=pt,
-      # cost_effective=cm$TN*costs["TN"] + cm$TP*costs["TP"] + cm$FN*costs["FN"] + cm$FP*costs["FP"],
-      # cz=cm$Se*cm$Sp,
-      iu=abs(cm$Se - auc) + abs(cm$Sp - auc)
-    )
-  }
-
-  screen_df <- map_dfr(pt_seq, f)
-  fx_select <- median
-
-  # pt_cost_effective <- fx_select(screen_df$pt[screen_df$cost_effective==max(screen_df$cost_effective)])
-  # pt_cost_effective_smth <- get_smooth_max(x=screen_df$pt, y=screen_df$cost_effective)
-
-  # pt_cost_effective <- get_smooth_max(x=screen_df$pt, y=screen_df$cost_effective)
   pt_cost_effective <- cutpointr(
     x=predicted, class=actual, method=maximize_metric, metric=fx_total_nmb,
     utility_tp=costs["TP"], utility_tn=costs["TN"],
@@ -140,7 +122,6 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
     pt_cost_effective <- 1
   }
 
-  # pt_cz <- fx_select(screen_df$pt[screen_df$cz==max(screen_df$cz)])
   pt_cz <- cutpointr(
     x=predicted, class=actual, method=maximize_metric, metric=fx_prod_sn_sp,
     silent=TRUE
@@ -149,8 +130,13 @@ get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs
     pt_cz <- 1
   }
 
-  pt_iu <- fx_select(screen_df$pt[screen_df$iu==min(screen_df$iu)])
-  # Can't do IU method in cutpointsR as of yet as it requires the auc and this isn't passed to the metric call in the package - I have DM'd Christian Thiele to see whether he would be able to add it.
+  pt_iu <- cutpointr(
+    x=predicted, class=actual, method=minimize_metric, metric=roc_iu,
+    silent=TRUE
+  )[['optimal_cutpoint']]
+  if (pt_iu > 1) {
+    pt_iu <- 1
+  }
 
   list(
     treat_all=0,
