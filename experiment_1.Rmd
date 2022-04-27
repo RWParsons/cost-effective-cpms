@@ -451,8 +451,8 @@ df_summaries %>%
   select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
   select(event_rate, sim_auc, everything()) %>%
   pivot_wider(names_from="method", values_from="summary") %>% 
-  formattable() %>%
-  kable_styling() 
+  formattable() #%>%
+  #kable_styling() 
 
 df_summaries_ICU <- rbindlist(extract_summaries(ll2)) %>%
   group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
@@ -463,8 +463,8 @@ df_summaries_ICU %>%
   select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
   select(event_rate, sim_auc, everything()) %>%
   pivot_wider(names_from="method", values_from="summary") %>% 
-  formattable() %>%
-  kable_styling() 
+  formattable() #%>%
+  #kable_styling() 
 
 ```
 
