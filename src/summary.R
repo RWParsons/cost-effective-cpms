@@ -154,11 +154,91 @@ plot_density_ridge = function(data, FUN=c("eti", "hdi"), ci=0.9, subtitle="", fa
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 }
 
+
+density_plot <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
+                      factor_levels=NULL) {
+
+  # adapted from:
+  # https://stackoverflow.com/questions/65269825/is-it-possible-to-recreate-the-functionality-of-bayesplots-mcmc-areas-plot-in
+  # https://stackoverflow.com/questions/49961582/how-shade-area-under-ggridges-curve
+
+  if(is.null(factor_levels)){
+    factor_levels <- data %>% select(-n_sim) %>% names()
+  }
+  p_data <-
+    data %>%
+    pivot_longer(!n_sim)
+
+  p_data$name <- factor(p_data$name, levels=factor_levels)
+
+  cred.int <- data %>%
+    pivot_longer(!n_sim) %>%
+    group_by(name) %>%
+    summarise(CI=list(hdi(value, ci=ci)),
+              m=median(value, na.rm=TRUE)) %>%
+    unnest_wider(CI)
+
+  p <- p_data %>%
+    ggplot(aes(x = value, y = name)) +
+    stat_density_ridges(
+      geom = "density_ridges_gradient",
+      calc_ecdf = TRUE,
+      quantiles = c(0.5),
+      scale=0.9,
+      quantile_lines = TRUE
+    )
+
+  d <- transform(ggplot_build(p)$data[[1]], name=group) %>%
+    left_join(.,
+              mutate(cred.int, name=as.numeric(factor(name, levels=factor_levels))),
+              by="name") %>%
+    filter(x < CI_high, x > CI_low)
+
+  p <- p +
+    geom_ribbon(
+      data=d,
+      aes(x, ymin=ymin, ymax=ymax, group=group),
+      fill="#ADD8E6") +
+    stat_density_ridges(
+      geom = "density_ridges_gradient",
+      calc_ecdf = TRUE,
+      quantiles = c(0.5),
+      scale=0.9,
+      quantile_lines = TRUE,
+      fill="transparent"
+    ) +
+    coord_flip()+
+    theme_bw() +
+    labs(
+      y="", x="",
+      subtitle=subtitle
+    ) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+          legend.position = "position.none")
+
+  if(limit_y){
+    p <- p +
+      scale_x_continuous(limits=c(0,1))
+  } else {
+    p <- p +
+      scale_x_continuous(labels=scales::dollar_format())
+  }
+  p
+}
+
 # extract content from lists (made from parallel processing of simulations)
-extract_plots <- function(l) {
+extract_result_plots <- function(l) {
   res <- list()
   for(i in 1:length(l)) {
-    res <- c(res, list(l[[i]]$plot))
+    res <- c(res, list(l[[i]]$plot_result))
+  }
+  res
+}
+
+extract_threshold_plots <- function(l) {
+  res <- list()
+  for(i in 1:length(l)) {
+    res <- c(res, list(l[[i]]$plot_threshold))
   }
   res
 }

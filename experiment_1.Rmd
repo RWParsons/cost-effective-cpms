@@ -13,6 +13,8 @@ library(data.table)
 library(ggridges)
 library(bayestestR)
 library(cutpointr)
+library(kableExtra)
+library(formattable)
 source("src/inputs.R")
 source("src/utils.R")
 source("src/cutpoint_methods.R")
@@ -243,7 +245,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   names(df_plot)[-1] <- method_levels <- paste0(names(df_plot)[-1], "(", pts, ")")
   
   res <- list()
-  
+  # return(df_thresholds)
   if(return_plot){
     sub <- glue::glue("auc: {sim_auc}; event_rate: {event_rate};\nsample_size: {sample_size}")
     if(plot_type=="boxplot"){
@@ -251,12 +253,14 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     } else if(plot_type=="point"){
       p <- get_errorbar_plot(data=df_plot, ordered_methods=method_levels, subtitle=sub)
     } else if(plot_type=="density") {
-      p <- plot_density_ridge(
-        select(df_result, -n_sim), FUN='hdi', scale=scale, subtitle=sub,
-        factor_levels=names(select(df_result, -n_sim))
-      ) 
+      # p <- plot_density_ridge(
+      #   select(df_result, -n_sim), FUN='hdi', scale=scale, subtitle=sub,
+      #   factor_levels=names(select(df_result, -n_sim))
+      # ) 
+      p <- density_plot(df_result, subtitle=sub, limit_y=F)
     }
-    res <- c(res, list(plot=p))
+    p2 <- density_plot(select(df_thresholds, -treat_none, -treat_all), subtitle=sub, limit_y=T)
+    res <- c(res, list(plot_result=p, plot_threshold=p2))
   }
   
   if(return_summary){
@@ -275,14 +279,13 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   res
 }
 
-# x <- do_simulation(
-#   sample_size=500, n_sims=50, n_valid=1000, sim_auc=0.8, event_rate=0.025,
-#   fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-#   plot_type = "density",
-#   scale=60
-# )
-# x
-
+x <- do_simulation(
+  sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.8, event_rate=0.025,
+  fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+  plot_type = "density",
+  scale=1
+)
+x
 ```
 
 
@@ -435,12 +438,14 @@ ll2 <- parallel::parLapply(
   )
 )
 
-cowplot::plot_grid(plotlist=extract_plots(ll1), ncol=length(unique(g$sim_auc)))
-cowplot::plot_grid(plotlist=extract_plots(ll2), ncol=length(unique(g$sim_auc)))
+
+cowplot::plot_grid(plotlist=extract_result_plots(ll1), ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=extract_result_plots(ll2), ncol=length(unique(g$sim_auc)))
+
+cowplot::plot_grid(plotlist=extract_threshold_plots(ll1), ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=extract_threshold_plots(ll2), ncol=length(unique(g$sim_auc)))
 
 
-library(kableExtra)
-library(formattable)
 
 df_summaries <- rbindlist(extract_summaries(ll1)) %>%
   group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
@@ -451,8 +456,8 @@ df_summaries %>%
   select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
   select(event_rate, sim_auc, everything()) %>%
   pivot_wider(names_from="method", values_from="summary") %>% 
-  formattable() #%>%
-  #kable_styling() 
+  formattable() %>%
+  kable_styling()
 
 df_summaries_ICU <- rbindlist(extract_summaries(ll2)) %>%
   group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
@@ -463,8 +468,8 @@ df_summaries_ICU %>%
   select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
   select(event_rate, sim_auc, everything()) %>%
   pivot_wider(names_from="method", values_from="summary") %>% 
-  formattable() #%>%
-  #kable_styling() 
+  formattable() %>%
+  kable_styling()
 
 ```
 
@@ -525,9 +530,11 @@ ll4 <- parallel::parLapply(
   )
 )
 
-cowplot::plot_grid(plotlist=extract_plots(ll3), ncol=length(unique(g2$sim_auc)))
-cowplot::plot_grid(plotlist=extract_plots(ll4), ncol=length(unique(g2$sim_auc)))
+cowplot::plot_grid(plotlist=extract_result_plots(ll3), ncol=length(unique(g2$sim_auc)))
+cowplot::plot_grid(plotlist=extract_result_plots(ll4), ncol=length(unique(g2$sim_auc)))
 
+cowplot::plot_grid(plotlist=extract_threshold_plots(ll3), ncol=length(unique(g2$sim_auc)))
+cowplot::plot_grid(plotlist=extract_threshold_plots(ll4), ncol=length(unique(g2$sim_auc)))
 ```
 
 
