@@ -19,7 +19,7 @@ summarize_sims <- function(x, prob=0.9, use_hdi=TRUE) {
   if(use_hdi){
     hdi <- hdi(x, ci=prob)
     res <- glue::glue(
-      "{r(median(x))} [{scales::percent(prob)} HDI:{r(hdi$CI_low)}, {r(hdi$CI_high)}]"
+      "{r(median(x))} [{r(hdi$CI_low)}, {r(hdi$CI_high)}]"
     )
   } else {
     iqr <- quantile(x, probs=c(0.25,0.75))

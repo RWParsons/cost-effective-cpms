@@ -389,7 +389,8 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 simulation_config <- list(
   training_sample_size = 500,
   n_simulations = 200,
-  validation_sample_size = 1000
+  validation_sample_size = 1000,
+  hdi_prob=0.9
 )
 library(parallel)
 n_cluster <- detectCores()
@@ -427,7 +428,8 @@ ll1 <- parallel::parLapply(
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
     return_data=F, return_plot=T, return_summary=T,
     fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-    plot_type="density", scale=60
+    hdi_prob=simulation_config$hdi_prob,
+    plot_type="density"
   )
 )
 
@@ -441,7 +443,8 @@ ll2 <- parallel::parLapply(
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
     return_data=F, return_plot=T, return_summary=T,
     fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
-    plot_type="density", scale=400
+    hdi_prob=simulation_config$hdi_prob,
+    plot_type="density"
   )
 )
 
@@ -458,12 +461,13 @@ ggsave(filename="output/icu_simulations_thresholds.jpeg", height=24, width=12)
 
 
 
-make_table <- function(l, results=T, save_path=NULL) {
+make_table <- function(l, results=T, hdi_prob=simulation_config$hdi_prob, save_path=NULL) {
   if(results){
     tbl <- rbindlist(extract_summaries(l)) 
   } else {
     tbl <- rbindlist(extract_thresholds_summary(l)) 
   }
+  
   tbl <- 
     tbl %>%
     group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
@@ -473,17 +477,19 @@ make_table <- function(l, results=T, save_path=NULL) {
     select(event_rate, sim_auc, everything()) %>%
     pivot_wider(names_from="method", values_from="summary") %>% 
     formattable() %>%
+    kable(escape=F,
+          caption=glue::glue("Data presented as median [{percent(hdi_prob, digits=0)} Highest Density Interval]")) %>%
     kable_styling()
   if(!is.null(save_path)) {
     save_kable(tbl, save_path)
   }
 }
 
-make_table(ll1, results=T, "output/falls_nmb_summary.html")
-make_table(ll1, results=F, "output/falls_thresholds_summary.html")
+make_table(ll1, results=T, save_path="output/falls_nmb_summary.html")
+make_table(ll1, results=F, save_path="output/falls_thresholds_summary.html")
 
-make_table(ll2, results=T, "output/icu_nmb_summary.html")
-make_table(ll2, results=F, "output/icu_thresholds_summary.html")
+make_table(ll2, results=T, save_path="output/icu_nmb_summary.html")
+make_table(ll2, results=F, save_path="output/icu_thresholds_summary.html")
 
 
 
