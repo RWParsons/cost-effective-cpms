@@ -255,3 +255,11 @@ extract_summaries <- function(l, format_max_nmb=T) {
   }
   res
 }
+
+extract_thresholds_summary <- function(l) {
+  res <- list()
+  for(i in 1:length(l)) {
+    res <- c(res, list(l[[i]]$thresholds_summary))
+  }
+  res
+}

@@ -270,22 +270,29 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       n_valid=n_valid, sim_auc=sim_auc,
       event_rate=event_rate
     )
-    res <- c(res, list(summary=df_summary))
+    thresholds_summary <- get_summary(
+      data=df_thresholds, hdi_prob=hdi_prob, use_hdi=use_hdi,
+      sample_size=sample_size, n_sims=n_sims,
+      n_valid=n_valid, sim_auc=sim_auc,
+      event_rate=event_rate
+    ) %>%
+      filter(!method %in% c("treat_all", "treat_none"))
+    res <- c(res, list(summary=df_summary, thresholds_summary=thresholds_summary))
   }
   
   if(return_data){
-    res <- c(res, list(data=df_result))
+    res <- c(res, list(data=df_result, thresholds=df_thresholds))
   }
   res
 }
 
-x <- do_simulation(
-  sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.8, event_rate=0.025,
-  fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-  plot_type = "density",
-  scale=1
-)
-x
+# x <- do_simulation(
+#   sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.8, event_rate=0.025,
+#   fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+#   plot_type = "density",
+#   scale=1
+# )
+# x
 ```
 
 
@@ -440,36 +447,45 @@ ll2 <- parallel::parLapply(
 
 
 cowplot::plot_grid(plotlist=extract_result_plots(ll1), ncol=length(unique(g$sim_auc)))
+ggsave(filename="output/falls_simulations_nmb.jpeg", height=24, width=12)
 cowplot::plot_grid(plotlist=extract_result_plots(ll2), ncol=length(unique(g$sim_auc)))
+ggsave(filename="output/icu_simulations_nmb.jpeg", height=24, width=12)
 
 cowplot::plot_grid(plotlist=extract_threshold_plots(ll1), ncol=length(unique(g$sim_auc)))
+ggsave(filename="output/falls_simulations_thresholds.jpeg", height=24, width=12)
 cowplot::plot_grid(plotlist=extract_threshold_plots(ll2), ncol=length(unique(g$sim_auc)))
+ggsave(filename="output/icu_simulations_thresholds.jpeg", height=24, width=12)
 
 
 
-df_summaries <- rbindlist(extract_summaries(ll1)) %>%
-  group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
-  mutate(.group_id=cur_group_id()) %>%
-  ungroup()
+make_table <- function(l, results=T, save_path=NULL) {
+  if(results){
+    tbl <- rbindlist(extract_summaries(l)) 
+  } else {
+    tbl <- rbindlist(extract_thresholds_summary(l)) 
+  }
+  tbl <- 
+    tbl %>%
+    group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
+    mutate(.group_id=cur_group_id()) %>%
+    ungroup() %>%
+    select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
+    select(event_rate, sim_auc, everything()) %>%
+    pivot_wider(names_from="method", values_from="summary") %>% 
+    formattable() %>%
+    kable_styling()
+  if(!is.null(save_path)) {
+    save_kable(tbl, save_path)
+  }
+}
 
-df_summaries %>%
-  select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
-  select(event_rate, sim_auc, everything()) %>%
-  pivot_wider(names_from="method", values_from="summary") %>% 
-  formattable() %>%
-  kable_styling()
+make_table(ll1, results=T, "output/falls_nmb_summary.html")
+make_table(ll1, results=F, "output/falls_thresholds_summary.html")
 
-df_summaries_ICU <- rbindlist(extract_summaries(ll2)) %>%
-  group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
-  mutate(.group_id=cur_group_id()) %>%
-  ungroup()
+make_table(ll2, results=T, "output/icu_nmb_summary.html")
+make_table(ll2, results=F, "output/icu_thresholds_summary.html")
 
-df_summaries_ICU %>%
-  select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
-  select(event_rate, sim_auc, everything()) %>%
-  pivot_wider(names_from="method", values_from="summary") %>% 
-  formattable() %>%
-  kable_styling()
+
 
 ```
 

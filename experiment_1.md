@@ -1,6 +1,6 @@
 Experiment 1
 ================
-27 April, 2022
+29 April, 2022
 
 Question: What are the differences in NMB between models where the
 Probability threshold was based on the currently available methods
@@ -248,7 +248,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   names(df_plot)[-1] <- method_levels <- paste0(names(df_plot)[-1], "(", pts, ")")
   
   res <- list()
-  
+  # return(df_thresholds)
   if(return_plot){
     sub <- glue::glue("auc: {sim_auc}; event_rate: {event_rate};\nsample_size: {sample_size}")
     if(plot_type=="boxplot"){
@@ -256,12 +256,14 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     } else if(plot_type=="point"){
       p <- get_errorbar_plot(data=df_plot, ordered_methods=method_levels, subtitle=sub)
     } else if(plot_type=="density") {
-      p <- plot_density_ridge(
-        select(df_result, -n_sim), FUN='hdi', scale=scale, subtitle=sub,
-        factor_levels=names(select(df_result, -n_sim))
-      ) 
+      # p <- plot_density_ridge(
+      #   select(df_result, -n_sim), FUN='hdi', scale=scale, subtitle=sub,
+      #   factor_levels=names(select(df_result, -n_sim))
+      # ) 
+      p <- density_plot(df_result, subtitle=sub, limit_y=F)
     }
-    res <- c(res, list(plot=p))
+    p2 <- density_plot(select(df_thresholds, -treat_none, -treat_all), subtitle=sub, limit_y=T)
+    res <- c(res, list(plot_result=p, plot_threshold=p2))
   }
   
   if(return_summary){
@@ -271,20 +273,27 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       n_valid=n_valid, sim_auc=sim_auc,
       event_rate=event_rate
     )
-    res <- c(res, list(summary=df_summary))
+    thresholds_summary <- get_summary(
+      data=df_thresholds, hdi_prob=hdi_prob, use_hdi=use_hdi,
+      sample_size=sample_size, n_sims=n_sims,
+      n_valid=n_valid, sim_auc=sim_auc,
+      event_rate=event_rate
+    ) %>%
+      filter(!method %in% c("treat_all", "treat_none"))
+    res <- c(res, list(summary=df_summary, thresholds_summary=thresholds_summary))
   }
   
   if(return_data){
-    res <- c(res, list(data=df_result))
+    res <- c(res, list(data=df_result, thresholds=df_thresholds))
   }
   res
 }
 
 # x <- do_simulation(
-#   sample_size=500, n_sims=50, n_valid=1000, sim_auc=0.8, event_rate=0.025,
+#   sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.8, event_rate=0.025,
 #   fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
 #   plot_type = "density",
-#   scale=60
+#   scale=1
 # )
 # x
 ```
@@ -359,1301 +368,307 @@ ll2 <- parallel::parLapply(
   )
 )
 
-cowplot::plot_grid(plotlist=extract_plots(ll1), ncol=length(unique(g$sim_auc)))
+
+cowplot::plot_grid(plotlist=extract_result_plots(ll1), ncol=length(unique(g$sim_auc)))
 ```
+
+    ## Picking joint bandwidth of 14.6
+    ## Picking joint bandwidth of 14.6
+
+    ## Picking joint bandwidth of 12.4
+    ## Picking joint bandwidth of 12.4
+
+    ## Picking joint bandwidth of 11.3
+    ## Picking joint bandwidth of 11.3
+
+    ## Picking joint bandwidth of 9.03
+    ## Picking joint bandwidth of 9.03
+
+    ## Picking joint bandwidth of 18.6
+    ## Picking joint bandwidth of 18.6
+
+    ## Picking joint bandwidth of 18.1
+    ## Picking joint bandwidth of 18.1
+
+    ## Picking joint bandwidth of 17.1
+    ## Picking joint bandwidth of 17.1
+
+    ## Picking joint bandwidth of 16
+    ## Picking joint bandwidth of 16
+
+    ## Picking joint bandwidth of 29.9
+    ## Picking joint bandwidth of 29.9
+
+    ## Picking joint bandwidth of 29.5
+    ## Picking joint bandwidth of 29.5
+
+    ## Picking joint bandwidth of 29
+    ## Picking joint bandwidth of 29
+
+    ## Picking joint bandwidth of 28.7
+    ## Picking joint bandwidth of 28.7
+
+    ## Picking joint bandwidth of 40.7
+    ## Picking joint bandwidth of 40.7
+
+    ## Picking joint bandwidth of 40.2
+    ## Picking joint bandwidth of 40.2
+
+    ## Picking joint bandwidth of 39.8
+    ## Picking joint bandwidth of 39.8
+    ## Picking joint bandwidth of 39.8
+    ## Picking joint bandwidth of 39.8
+
+    ## Picking joint bandwidth of 52.1
+    ## Picking joint bandwidth of 52.1
+
+    ## Picking joint bandwidth of 52.4
+    ## Picking joint bandwidth of 52.4
+
+    ## Picking joint bandwidth of 52
+    ## Picking joint bandwidth of 52
+
+    ## Picking joint bandwidth of 52.3
+    ## Picking joint bandwidth of 52.3
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
 
 ``` r
-cowplot::plot_grid(plotlist=extract_plots(ll2), ncol=length(unique(g$sim_auc)))
+ggsave(filename="output/falls_simulations_nmb.jpeg", height=24, width=12)
+cowplot::plot_grid(plotlist=extract_result_plots(ll2), ncol=length(unique(g$sim_auc)))
 ```
+
+    ## Picking joint bandwidth of 247
+
+    ## Picking joint bandwidth of 247
+
+    ## Picking joint bandwidth of 224
+    ## Picking joint bandwidth of 224
+
+    ## Picking joint bandwidth of 190
+    ## Picking joint bandwidth of 190
+
+    ## Picking joint bandwidth of 137
+    ## Picking joint bandwidth of 137
+
+    ## Picking joint bandwidth of 304
+    ## Picking joint bandwidth of 304
+
+    ## Picking joint bandwidth of 259
+    ## Picking joint bandwidth of 259
+
+    ## Picking joint bandwidth of 219
+    ## Picking joint bandwidth of 219
+
+    ## Picking joint bandwidth of 180
+    ## Picking joint bandwidth of 180
+
+    ## Picking joint bandwidth of 376
+    ## Picking joint bandwidth of 376
+
+    ## Picking joint bandwidth of 336
+    ## Picking joint bandwidth of 336
+
+    ## Picking joint bandwidth of 301
+    ## Picking joint bandwidth of 301
+
+    ## Picking joint bandwidth of 233
+    ## Picking joint bandwidth of 233
+
+    ## Picking joint bandwidth of 474
+    ## Picking joint bandwidth of 474
+
+    ## Picking joint bandwidth of 427
+    ## Picking joint bandwidth of 427
+
+    ## Picking joint bandwidth of 379
+    ## Picking joint bandwidth of 379
+
+    ## Picking joint bandwidth of 294
+    ## Picking joint bandwidth of 294
+
+    ## Picking joint bandwidth of 586
+    ## Picking joint bandwidth of 586
+
+    ## Picking joint bandwidth of 538
+    ## Picking joint bandwidth of 538
+
+    ## Picking joint bandwidth of 458
+    ## Picking joint bandwidth of 458
+
+    ## Picking joint bandwidth of 345
+    ## Picking joint bandwidth of 345
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-5-2.png)<!-- -->
 
 ``` r
-library(kableExtra)
+ggsave(filename="output/icu_simulations_nmb.jpeg", height=24, width=12)
+
+cowplot::plot_grid(plotlist=extract_threshold_plots(ll1), ncol=length(unique(g$sim_auc)))
 ```
 
-    ## 
-    ## Attaching package: 'kableExtra'
+    ## Picking joint bandwidth of 0.0286
 
-    ## The following object is masked from 'package:dplyr':
-    ## 
-    ##     group_rows
+    ## Picking joint bandwidth of 0.0286
+
+    ## Picking joint bandwidth of 0.0302
+    ## Picking joint bandwidth of 0.0302
+
+    ## Picking joint bandwidth of 0.0188
+    ## Picking joint bandwidth of 0.0188
+
+    ## Picking joint bandwidth of 0.0146
+    ## Picking joint bandwidth of 0.0146
+
+    ## Picking joint bandwidth of 0.0305
+    ## Picking joint bandwidth of 0.0305
+
+    ## Picking joint bandwidth of 0.00735
+    ## Picking joint bandwidth of 0.00735
+
+    ## Picking joint bandwidth of 0.00633
+    ## Picking joint bandwidth of 0.00633
+
+    ## Picking joint bandwidth of 0.0105
+    ## Picking joint bandwidth of 0.0105
+
+    ## Picking joint bandwidth of 0.00506
+    ## Picking joint bandwidth of 0.00506
+
+    ## Picking joint bandwidth of 0.00571
+    ## Picking joint bandwidth of 0.00571
+
+    ## Picking joint bandwidth of 0.0075
+    ## Picking joint bandwidth of 0.0075
+
+    ## Picking joint bandwidth of 0.0109
+    ## Picking joint bandwidth of 0.0109
+
+    ## Picking joint bandwidth of 0.00468
+    ## Picking joint bandwidth of 0.00468
+
+    ## Picking joint bandwidth of 0.00613
+    ## Picking joint bandwidth of 0.00613
+
+    ## Picking joint bandwidth of 0.00843
+    ## Picking joint bandwidth of 0.00843
+
+    ## Picking joint bandwidth of 0.0125
+    ## Picking joint bandwidth of 0.0125
+
+    ## Picking joint bandwidth of 0.00587
+    ## Picking joint bandwidth of 0.00587
+
+    ## Picking joint bandwidth of 0.00673
+    ## Picking joint bandwidth of 0.00673
+
+    ## Picking joint bandwidth of 0.00973
+    ## Picking joint bandwidth of 0.00973
+
+    ## Picking joint bandwidth of 0.0129
+    ## Picking joint bandwidth of 0.0129
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-5-3.png)<!-- -->
 
 ``` r
-library(formattable)
+ggsave(filename="output/falls_simulations_thresholds.jpeg", height=24, width=12)
+cowplot::plot_grid(plotlist=extract_threshold_plots(ll2), ncol=length(unique(g$sim_auc)))
 ```
 
-    ## 
-    ## Attaching package: 'formattable'
+    ## Picking joint bandwidth of 0.0225
 
-    ## The following object is masked from 'package:MASS':
-    ## 
-    ##     area
+    ## Picking joint bandwidth of 0.0225
 
-``` r
-df_summaries <- rbindlist(extract_summaries(ll1)) %>%
-  group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
-  mutate(.group_id=cur_group_id()) %>%
-  ungroup()
+    ## Picking joint bandwidth of 0.021
+    ## Picking joint bandwidth of 0.021
 
-df_summaries %>%
-  select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
-  select(event_rate, sim_auc, everything()) %>%
-  pivot_wider(names_from="method", values_from="summary") %>% 
-  formattable() #%>%
-```
+    ## Picking joint bandwidth of 0.0232
+    ## Picking joint bandwidth of 0.0232
 
-<table class="table table-condensed">
-<thead>
-<tr>
-<th style="text-align:right;">
-event_rate
-</th>
-<th style="text-align:right;">
-sim_auc
-</th>
-<th style="text-align:right;">
-treat_all
-</th>
-<th style="text-align:right;">
-treat_none
-</th>
-<th style="text-align:right;">
-cost_effective
-</th>
-<th style="text-align:right;">
-er
-</th>
-<th style="text-align:right;">
-youden
-</th>
-<th style="text-align:right;">
-cz
-</th>
-<th style="text-align:right;">
-iu
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:right;">
-0.010
-</td>
-<td style="text-align:right;">
-0.65
-</td>
-<td style="text-align:right;">
--432.26 \[90% HDI:-467.8, -402.11\]
-</td>
-<td style="text-align:right;">
-<b>-81.09 \[90% HDI:-132.59, -40.61\]</br>
-</td>
-<td style="text-align:right;">
--87.62 \[90% HDI:-408.37, -36.81\]
-</td>
-<td style="text-align:right;">
--182.02 \[90% HDI:-288.8, -102.01\]
-</td>
-<td style="text-align:right;">
--200.43 \[90% HDI:-316.25, -85.05\]
-</td>
-<td style="text-align:right;">
--198.73 \[90% HDI:-300.15, -111.09\]
-</td>
-<td style="text-align:right;">
--200.54 \[90% HDI:-268.78, -122.28\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.010
-</td>
-<td style="text-align:right;">
-0.75
-</td>
-<td style="text-align:right;">
--432.26 \[90% HDI:-467.8, -402.11\]
-</td>
-<td style="text-align:right;">
-<b>-81.09 \[90% HDI:-132.59, -40.61\]</br>
-</td>
-<td style="text-align:right;">
--82.57 \[90% HDI:-139.09, -46.48\]
-</td>
-<td style="text-align:right;">
--161.36 \[90% HDI:-231.73, -78.23\]
-</td>
-<td style="text-align:right;">
--162.99 \[90% HDI:-254.93, -77.84\]
-</td>
-<td style="text-align:right;">
--162.44 \[90% HDI:-236.36, -77.2\]
-</td>
-<td style="text-align:right;">
--164.99 \[90% HDI:-239.57, -102.46\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.010
-</td>
-<td style="text-align:right;">
-0.85
-</td>
-<td style="text-align:right;">
--432.26 \[90% HDI:-467.8, -402.11\]
-</td>
-<td style="text-align:right;">
--81.09 \[90% HDI:-132.59, -40.61\]
-</td>
-<td style="text-align:right;">
-<b>-80.75 \[90% HDI:-129.93, -43.31\]</br>
-</td>
-<td style="text-align:right;">
--128.58 \[90% HDI:-191.1, -66.23\]
-</td>
-<td style="text-align:right;">
--135.18 \[90% HDI:-208.11, -62.78\]
-</td>
-<td style="text-align:right;">
--130.4 \[90% HDI:-190.91, -56.49\]
-</td>
-<td style="text-align:right;">
--129.85 \[90% HDI:-188.96, -70.66\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.010
-</td>
-<td style="text-align:right;">
-0.95
-</td>
-<td style="text-align:right;">
--432.26 \[90% HDI:-467.8, -402.11\]
-</td>
-<td style="text-align:right;">
--81.09 \[90% HDI:-132.59, -40.61\]
-</td>
-<td style="text-align:right;">
-<b>-73.65 \[90% HDI:-118.92, -39.95\]</br>
-</td>
-<td style="text-align:right;">
--90.95 \[90% HDI:-148.7, -49.9\]
-</td>
-<td style="text-align:right;">
--90.67 \[90% HDI:-149.96, -46.34\]
-</td>
-<td style="text-align:right;">
--90.67 \[90% HDI:-149.96, -46.34\]
-</td>
-<td style="text-align:right;">
--89.55 \[90% HDI:-144.87, -46.34\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.025
-</td>
-<td style="text-align:right;">
-0.65
-</td>
-<td style="text-align:right;">
--508.74 \[90% HDI:-592.63, -443.23\]
-</td>
-<td style="text-align:right;">
-<b>-211.09 \[90% HDI:-320.14, -126.64\]</br>
-</td>
-<td style="text-align:right;">
--215.95 \[90% HDI:-334.04, -112.47\]
-</td>
-<td style="text-align:right;">
--302.48 \[90% HDI:-404.87, -215.82\]
-</td>
-<td style="text-align:right;">
--313.56 \[90% HDI:-434.48, -201.86\]
-</td>
-<td style="text-align:right;">
--308.24 \[90% HDI:-404.87, -214.66\]
-</td>
-<td style="text-align:right;">
--307.11 \[90% HDI:-400.42, -231.5\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.025
-</td>
-<td style="text-align:right;">
-0.75
-</td>
-<td style="text-align:right;">
--508.74 \[90% HDI:-592.63, -443.23\]
-</td>
-<td style="text-align:right;">
-<b>-211.09 \[90% HDI:-320.14, -126.64\]</br>
-</td>
-<td style="text-align:right;">
--211.98 \[90% HDI:-324.88, -130.72\]
-</td>
-<td style="text-align:right;">
--272.23 \[90% HDI:-368.58, -188.69\]
-</td>
-<td style="text-align:right;">
--279.32 \[90% HDI:-398.59, -185.51\]
-</td>
-<td style="text-align:right;">
--272.7 \[90% HDI:-369.53, -190.12\]
-</td>
-<td style="text-align:right;">
--275.49 \[90% HDI:-351.57, -188.3\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.025
-</td>
-<td style="text-align:right;">
-0.85
-</td>
-<td style="text-align:right;">
--508.74 \[90% HDI:-592.63, -443.23\]
-</td>
-<td style="text-align:right;">
--211.09 \[90% HDI:-320.14, -126.64\]
-</td>
-<td style="text-align:right;">
-<b>-195.7 \[90% HDI:-303.67, -131.18\]</br>
-</td>
-<td style="text-align:right;">
--235.28 \[90% HDI:-323.5, -148.28\]
-</td>
-<td style="text-align:right;">
--238.57 \[90% HDI:-333.8, -145.41\]
-</td>
-<td style="text-align:right;">
--240.33 \[90% HDI:-326.23, -147.54\]
-</td>
-<td style="text-align:right;">
--234.92 \[90% HDI:-321.57, -160.22\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.025
-</td>
-<td style="text-align:right;">
-0.95
-</td>
-<td style="text-align:right;">
--508.74 \[90% HDI:-592.63, -443.23\]
-</td>
-<td style="text-align:right;">
--211.09 \[90% HDI:-320.14, -126.64\]
-</td>
-<td style="text-align:right;">
-<b>-175.43 \[90% HDI:-262.74, -106\]</br>
-</td>
-<td style="text-align:right;">
--187.76 \[90% HDI:-262.63, -110.78\]
-</td>
-<td style="text-align:right;">
--194.92 \[90% HDI:-269.24, -111.26\]
-</td>
-<td style="text-align:right;">
--190.6 \[90% HDI:-269.24, -111.26\]
-</td>
-<td style="text-align:right;">
--187.57 \[90% HDI:-261.47, -110.01\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.050
-</td>
-<td style="text-align:right;">
-0.65
-</td>
-<td style="text-align:right;">
--642.1 \[90% HDI:-781.61, -506.49\]
-</td>
-<td style="text-align:right;">
--427.71 \[90% HDI:-625.19, -282.26\]
-</td>
-<td style="text-align:right;">
-<b>-424.55 \[90% HDI:-604.01, -274.76\]</br>
-</td>
-<td style="text-align:right;">
--472.38 \[90% HDI:-631.55, -347.38\]
-</td>
-<td style="text-align:right;">
--485.42 \[90% HDI:-644.82, -336.98\]
-</td>
-<td style="text-align:right;">
--475.25 \[90% HDI:-627.85, -334.1\]
-</td>
-<td style="text-align:right;">
--476.25 \[90% HDI:-630.81, -353.49\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.050
-</td>
-<td style="text-align:right;">
-0.75
-</td>
-<td style="text-align:right;">
--642.1 \[90% HDI:-781.61, -506.49\]
-</td>
-<td style="text-align:right;">
--427.71 \[90% HDI:-625.19, -282.26\]
-</td>
-<td style="text-align:right;">
-<b>-412.13 \[90% HDI:-593.58, -283.28\]</br>
-</td>
-<td style="text-align:right;">
--437.56 \[90% HDI:-595.72, -308.39\]
-</td>
-<td style="text-align:right;">
--442.3 \[90% HDI:-598.48, -301.34\]
-</td>
-<td style="text-align:right;">
--437.81 \[90% HDI:-588.11, -305.92\]
-</td>
-<td style="text-align:right;">
--435.56 \[90% HDI:-594.95, -314.24\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.050
-</td>
-<td style="text-align:right;">
-0.85
-</td>
-<td style="text-align:right;">
--642.1 \[90% HDI:-781.61, -506.49\]
-</td>
-<td style="text-align:right;">
--427.71 \[90% HDI:-625.19, -282.26\]
-</td>
-<td style="text-align:right;">
-<b>-380.01 \[90% HDI:-535.64, -248.18\]</br>
-</td>
-<td style="text-align:right;">
--390.52 \[90% HDI:-535.49, -255.79\]
-</td>
-<td style="text-align:right;">
--396.37 \[90% HDI:-539.05, -256.3\]
-</td>
-<td style="text-align:right;">
--395.38 \[90% HDI:-535.11, -250.68\]
-</td>
-<td style="text-align:right;">
--392.3 \[90% HDI:-536.33, -257.84\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.050
-</td>
-<td style="text-align:right;">
-0.95
-</td>
-<td style="text-align:right;">
--642.1 \[90% HDI:-781.61, -506.49\]
-</td>
-<td style="text-align:right;">
--427.71 \[90% HDI:-625.19, -282.26\]
-</td>
-<td style="text-align:right;">
-<b>-332.57 \[90% HDI:-489.85, -209.34\]</br>
-</td>
-<td style="text-align:right;">
--338.87 \[90% HDI:-486.64, -207.87\]
-</td>
-<td style="text-align:right;">
--342.98 \[90% HDI:-485.81, -212.56\]
-</td>
-<td style="text-align:right;">
--339.21 \[90% HDI:-489.57, -212.56\]
-</td>
-<td style="text-align:right;">
--341 \[90% HDI:-485.81, -212.56\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.075
-</td>
-<td style="text-align:right;">
-0.65
-</td>
-<td style="text-align:right;">
--770.34 \[90% HDI:-972.69, -596.97\]
-</td>
-<td style="text-align:right;">
--635.5 \[90% HDI:-882.83, -430.23\]
-</td>
-<td style="text-align:right;">
-<b>-629.1 \[90% HDI:-890.37, -470\]</br>
-</td>
-<td style="text-align:right;">
--642.31 \[90% HDI:-859.76, -476.78\]
-</td>
-<td style="text-align:right;">
--644.62 \[90% HDI:-853.74, -463.21\]
-</td>
-<td style="text-align:right;">
--639.44 \[90% HDI:-859.8, -476.78\]
-</td>
-<td style="text-align:right;">
--639.48 \[90% HDI:-856.48, -472.56\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.075
-</td>
-<td style="text-align:right;">
-0.75
-</td>
-<td style="text-align:right;">
--770.34 \[90% HDI:-972.69, -596.97\]
-</td>
-<td style="text-align:right;">
--635.5 \[90% HDI:-882.83, -430.23\]
-</td>
-<td style="text-align:right;">
-<b>-592.01 \[90% HDI:-804.82, -404.08\]</br>
-</td>
-<td style="text-align:right;">
--599.55 \[90% HDI:-810.14, -425.73\]
-</td>
-<td style="text-align:right;">
--600.39 \[90% HDI:-817.84, -431.98\]
-</td>
-<td style="text-align:right;">
--598.5 \[90% HDI:-810.14, -426.16\]
-</td>
-<td style="text-align:right;">
--598.84 \[90% HDI:-815.59, -439.32\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.075
-</td>
-<td style="text-align:right;">
-0.85
-</td>
-<td style="text-align:right;">
--770.34 \[90% HDI:-972.69, -596.97\]
-</td>
-<td style="text-align:right;">
--635.5 \[90% HDI:-882.83, -430.23\]
-</td>
-<td style="text-align:right;">
-<b>-544.01 \[90% HDI:-748.77, -371.45\]</br>
-</td>
-<td style="text-align:right;">
--548.09 \[90% HDI:-761.36, -382.86\]
-</td>
-<td style="text-align:right;">
--547.09 \[90% HDI:-760.6, -375.86\]
-</td>
-<td style="text-align:right;">
--547.7 \[90% HDI:-760.6, -381.14\]
-</td>
-<td style="text-align:right;">
--547.07 \[90% HDI:-763.93, -382.09\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.075
-</td>
-<td style="text-align:right;">
-0.95
-</td>
-<td style="text-align:right;">
--770.34 \[90% HDI:-972.69, -596.97\]
-</td>
-<td style="text-align:right;">
--635.5 \[90% HDI:-882.83, -430.23\]
-</td>
-<td style="text-align:right;">
--488.36 \[90% HDI:-694.91, -313.35\]
-</td>
-<td style="text-align:right;">
--486.38 \[90% HDI:-696.71, -313.09\]
-</td>
-<td style="text-align:right;">
-<b>-486.18 \[90% HDI:-696.71, -314.29\]</br>
-</td>
-<td style="text-align:right;">
--486.18 \[90% HDI:-696.71, -314.29\]
-</td>
-<td style="text-align:right;">
--486.18 \[90% HDI:-696.71, -314.29\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.100
-</td>
-<td style="text-align:right;">
-0.65
-</td>
-<td style="text-align:right;">
--898.39 \[90% HDI:-1172.23, -661.01\]
-</td>
-<td style="text-align:right;">
--861.75 \[90% HDI:-1194.56, -600.78\]
-</td>
-<td style="text-align:right;">
--819.12 \[90% HDI:-1087.72, -583.57\]
-</td>
-<td style="text-align:right;">
-<b>-806.31 \[90% HDI:-1088.03, -585.97\]</br>
-</td>
-<td style="text-align:right;">
--815.01 \[90% HDI:-1088.03, -579.01\]
-</td>
-<td style="text-align:right;">
--807 \[90% HDI:-1075.39, -578.31\]
-</td>
-<td style="text-align:right;">
--808.61 \[90% HDI:-1113.78, -605.42\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.100
-</td>
-<td style="text-align:right;">
-0.75
-</td>
-<td style="text-align:right;">
--898.39 \[90% HDI:-1172.23, -661.01\]
-</td>
-<td style="text-align:right;">
--861.75 \[90% HDI:-1194.56, -600.78\]
-</td>
-<td style="text-align:right;">
--765.49 \[90% HDI:-1036.62, -525.04\]
-</td>
-<td style="text-align:right;">
--759.31 \[90% HDI:-1035.48, -532.23\]
-</td>
-<td style="text-align:right;">
--758.75 \[90% HDI:-1031.96, -535.17\]
-</td>
-<td style="text-align:right;">
-<b>-758.5 \[90% HDI:-1035.48, -531.78\]</br>
-</td>
-<td style="text-align:right;">
--759.25 \[90% HDI:-1022.88, -523.45\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.100
-</td>
-<td style="text-align:right;">
-0.85
-</td>
-<td style="text-align:right;">
--898.39 \[90% HDI:-1172.23, -661.01\]
-</td>
-<td style="text-align:right;">
--861.75 \[90% HDI:-1194.56, -600.78\]
-</td>
-<td style="text-align:right;">
--712.57 \[90% HDI:-948.34, -462.71\]
-</td>
-<td style="text-align:right;">
-<b>-710.56 \[90% HDI:-976.54, -482.36\]</br>
-</td>
-<td style="text-align:right;">
--718.54 \[90% HDI:-961.59, -470.45\]
-</td>
-<td style="text-align:right;">
--712.41 \[90% HDI:-976.54, -481.67\]
-</td>
-<td style="text-align:right;">
--713.66 \[90% HDI:-961.59, -470.45\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.100
-</td>
-<td style="text-align:right;">
-0.95
-</td>
-<td style="text-align:right;">
--898.39 \[90% HDI:-1172.23, -661.01\]
-</td>
-<td style="text-align:right;">
--861.75 \[90% HDI:-1194.56, -600.78\]
-</td>
-<td style="text-align:right;">
--637.67 \[90% HDI:-887.87, -377.67\]
-</td>
-<td style="text-align:right;">
--640.98 \[90% HDI:-913.29, -409.06\]
-</td>
-<td style="text-align:right;">
--636.5 \[90% HDI:-886.12, -382.09\]
-</td>
-<td style="text-align:right;">
--636.5 \[90% HDI:-886.12, -382.09\]
-</td>
-<td style="text-align:right;">
-<b>-636.41 \[90% HDI:-885.34, -382.09\]</br>
-</td>
-</tr>
-</tbody>
-</table>
+    ## Picking joint bandwidth of 0.022
+    ## Picking joint bandwidth of 0.022
+
+    ## Picking joint bandwidth of 0.0269
+    ## Picking joint bandwidth of 0.0269
+
+    ## Picking joint bandwidth of 0.025
+    ## Picking joint bandwidth of 0.025
+
+    ## Picking joint bandwidth of 0.0218
+    ## Picking joint bandwidth of 0.0218
+
+    ## Picking joint bandwidth of 0.017
+    ## Picking joint bandwidth of 0.017
+
+    ## Picking joint bandwidth of 0.0268
+    ## Picking joint bandwidth of 0.0268
+
+    ## Picking joint bandwidth of 0.0242
+    ## Picking joint bandwidth of 0.0242
+
+    ## Picking joint bandwidth of 0.0134
+    ## Picking joint bandwidth of 0.0134
+
+    ## Picking joint bandwidth of 0.0151
+    ## Picking joint bandwidth of 0.0151
+
+    ## Picking joint bandwidth of 0.0269
+    ## Picking joint bandwidth of 0.0269
+
+    ## Picking joint bandwidth of 0.0151
+    ## Picking joint bandwidth of 0.0151
+
+    ## Picking joint bandwidth of 0.0129
+    ## Picking joint bandwidth of 0.0129
+
+    ## Picking joint bandwidth of 0.0167
+    ## Picking joint bandwidth of 0.0167
+
+    ## Picking joint bandwidth of 0.0262
+    ## Picking joint bandwidth of 0.0262
+
+    ## Picking joint bandwidth of 0.0129
+    ## Picking joint bandwidth of 0.0129
+
+    ## Picking joint bandwidth of 0.0117
+    ## Picking joint bandwidth of 0.0117
+
+    ## Picking joint bandwidth of 0.0173
+    ## Picking joint bandwidth of 0.0173
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-5-4.png)<!-- -->
 
 ``` r
-  #kable_styling() 
+ggsave(filename="output/icu_simulations_thresholds.jpeg", height=24, width=12)
 
-df_summaries_ICU <- rbindlist(extract_summaries(ll2)) %>%
-  group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
-  mutate(.group_id=cur_group_id()) %>%
-  ungroup()
 
-df_summaries_ICU %>%
-  select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
-  select(event_rate, sim_auc, everything()) %>%
-  pivot_wider(names_from="method", values_from="summary") %>% 
-  formattable() #%>%
-```
 
-<table class="table table-condensed">
-<thead>
-<tr>
-<th style="text-align:right;">
-event_rate
-</th>
-<th style="text-align:right;">
-sim_auc
-</th>
-<th style="text-align:right;">
-treat_all
-</th>
-<th style="text-align:right;">
-treat_none
-</th>
-<th style="text-align:right;">
-cost_effective
-</th>
-<th style="text-align:right;">
-er
-</th>
-<th style="text-align:right;">
-youden
-</th>
-<th style="text-align:right;">
-cz
-</th>
-<th style="text-align:right;">
-iu
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:right;">
-0.010
-</td>
-<td style="text-align:right;">
-0.65
-</td>
-<td style="text-align:right;">
--4781.56 \[90% HDI:-7109.94, -3105.69\]
-</td>
-<td style="text-align:right;">
-<b>-75.37 \[90% HDI:-839.92, 45.13\]</br>
-</td>
-<td style="text-align:right;">
--108.83 \[90% HDI:-2517.75, 45.13\]
-</td>
-<td style="text-align:right;">
--1699.91 \[90% HDI:-3267.26, -249.99\]
-</td>
-<td style="text-align:right;">
--1880.51 \[90% HDI:-3583.79, -169.3\]
-</td>
-<td style="text-align:right;">
--1860.21 \[90% HDI:-3440.37, -410.81\]
-</td>
-<td style="text-align:right;">
--1767.47 \[90% HDI:-3146.73, -667.33\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.010
-</td>
-<td style="text-align:right;">
-0.75
-</td>
-<td style="text-align:right;">
--4781.56 \[90% HDI:-7109.94, -3105.69\]
-</td>
-<td style="text-align:right;">
-<b>-75.37 \[90% HDI:-839.92, 45.13\]</br>
-</td>
-<td style="text-align:right;">
--84.66 \[90% HDI:-1167.95, 45.13\]
-</td>
-<td style="text-align:right;">
--1306.69 \[90% HDI:-2620, -253.36\]
-</td>
-<td style="text-align:right;">
--1331.5 \[90% HDI:-2877.5, -223.72\]
-</td>
-<td style="text-align:right;">
--1323.18 \[90% HDI:-2667, -223.72\]
-</td>
-<td style="text-align:right;">
--1390.81 \[90% HDI:-2552.02, -514.33\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.010
-</td>
-<td style="text-align:right;">
-0.85
-</td>
-<td style="text-align:right;">
--4781.56 \[90% HDI:-7109.94, -3105.69\]
-</td>
-<td style="text-align:right;">
-<b>-75.37 \[90% HDI:-839.92, 45.13\]</br>
-</td>
-<td style="text-align:right;">
--83.28 \[90% HDI:-821.39, 45.13\]
-</td>
-<td style="text-align:right;">
--886.84 \[90% HDI:-1900, -56.38\]
-</td>
-<td style="text-align:right;">
--934.27 \[90% HDI:-2170.82, -93.45\]
-</td>
-<td style="text-align:right;">
--886.84 \[90% HDI:-1887.74, -51.95\]
-</td>
-<td style="text-align:right;">
--951.16 \[90% HDI:-1983.41, -226.87\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.010
-</td>
-<td style="text-align:right;">
-0.95
-</td>
-<td style="text-align:right;">
--4781.56 \[90% HDI:-7109.94, -3105.69\]
-</td>
-<td style="text-align:right;">
--75.37 \[90% HDI:-839.92, 45.13\]
-</td>
-<td style="text-align:right;">
-<b>-72.64 \[90% HDI:-705.59, 45.13\]</br>
-</td>
-<td style="text-align:right;">
--448.28 \[90% HDI:-1105.03, 1.12\]
-</td>
-<td style="text-align:right;">
--458.69 \[90% HDI:-1164.93, 1.12\]
-</td>
-<td style="text-align:right;">
--458.69 \[90% HDI:-1126.16, 1.12\]
-</td>
-<td style="text-align:right;">
--454.75 \[90% HDI:-987.02, 1.12\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.025
-</td>
-<td style="text-align:right;">
-0.65
-</td>
-<td style="text-align:right;">
--4787.59 \[90% HDI:-7101.34, -3100.63\]
-</td>
-<td style="text-align:right;">
-<b>-271.38 \[90% HDI:-2604.46, 44.56\]</br>
-</td>
-<td style="text-align:right;">
--330.58 \[90% HDI:-4199.67, 44.56\]
-</td>
-<td style="text-align:right;">
--1995.25 \[90% HDI:-3524.94, -556.75\]
-</td>
-<td style="text-align:right;">
--2238.04 \[90% HDI:-3860.25, -306.66\]
-</td>
-<td style="text-align:right;">
--2046.79 \[90% HDI:-3585.5, -483.64\]
-</td>
-<td style="text-align:right;">
--2047.24 \[90% HDI:-3622.35, -1005.12\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.025
-</td>
-<td style="text-align:right;">
-0.75
-</td>
-<td style="text-align:right;">
--4787.59 \[90% HDI:-7101.34, -3100.63\]
-</td>
-<td style="text-align:right;">
--271.38 \[90% HDI:-2604.46, 44.56\]
-</td>
-<td style="text-align:right;">
-<b>-265.06 \[90% HDI:-2454.08, 44.56\]</br>
-</td>
-<td style="text-align:right;">
--1616.34 \[90% HDI:-2925.67, -620.81\]
-</td>
-<td style="text-align:right;">
--1675.78 \[90% HDI:-3035.63, -201.81\]
-</td>
-<td style="text-align:right;">
--1684.06 \[90% HDI:-2905.06, -541.16\]
-</td>
-<td style="text-align:right;">
--1604.3 \[90% HDI:-2747.89, -644.26\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.025
-</td>
-<td style="text-align:right;">
-0.85
-</td>
-<td style="text-align:right;">
--4787.59 \[90% HDI:-7101.34, -3100.63\]
-</td>
-<td style="text-align:right;">
--271.38 \[90% HDI:-2604.46, 44.56\]
-</td>
-<td style="text-align:right;">
-<b>-262.41 \[90% HDI:-2359.65, 44.56\]</br>
-</td>
-<td style="text-align:right;">
--1149.12 \[90% HDI:-2116.56, -367.03\]
-</td>
-<td style="text-align:right;">
--1214.24 \[90% HDI:-2365.52, -224.8\]
-</td>
-<td style="text-align:right;">
--1166.68 \[90% HDI:-2292.96, -330.55\]
-</td>
-<td style="text-align:right;">
--1127.41 \[90% HDI:-2072.05, -367.03\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.025
-</td>
-<td style="text-align:right;">
-0.95
-</td>
-<td style="text-align:right;">
--4787.59 \[90% HDI:-7101.34, -3100.63\]
-</td>
-<td style="text-align:right;">
--271.38 \[90% HDI:-2604.46, 44.56\]
-</td>
-<td style="text-align:right;">
-<b>-220.51 \[90% HDI:-1710.74, 23.76\]</br>
-</td>
-<td style="text-align:right;">
--607.91 \[90% HDI:-1331.44, -229.53\]
-</td>
-<td style="text-align:right;">
--669.13 \[90% HDI:-1367.14, -143.07\]
-</td>
-<td style="text-align:right;">
--662.29 \[90% HDI:-1331.44, -143.07\]
-</td>
-<td style="text-align:right;">
--613.39 \[90% HDI:-1124, -143.07\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.050
-</td>
-<td style="text-align:right;">
-0.65
-</td>
-<td style="text-align:right;">
--4776.97 \[90% HDI:-7085.17, -3089.01\]
-</td>
-<td style="text-align:right;">
-<b>-578.52 \[90% HDI:-5392.27, 43.75\]</br>
-</td>
-<td style="text-align:right;">
--602.61 \[90% HDI:-5392.27, 43.75\]
-</td>
-<td style="text-align:right;">
--2252.54 \[90% HDI:-4419.22, -853.19\]
-</td>
-<td style="text-align:right;">
--2423.45 \[90% HDI:-4791.46, -559.36\]
-</td>
-<td style="text-align:right;">
--2254.01 \[90% HDI:-4350.3, -679.77\]
-</td>
-<td style="text-align:right;">
--2294.45 \[90% HDI:-4321.73, -1130.32\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.050
-</td>
-<td style="text-align:right;">
-0.75
-</td>
-<td style="text-align:right;">
--4776.97 \[90% HDI:-7085.17, -3089.01\]
-</td>
-<td style="text-align:right;">
-<b>-578.52 \[90% HDI:-5392.27, 43.75\]</br>
-</td>
-<td style="text-align:right;">
--581.21 \[90% HDI:-5210.54, 38.59\]
-</td>
-<td style="text-align:right;">
--1890.86 \[90% HDI:-3639.82, -770.71\]
-</td>
-<td style="text-align:right;">
--2032.19 \[90% HDI:-3863.89, -683.68\]
-</td>
-<td style="text-align:right;">
--1906.18 \[90% HDI:-3716.09, -729.03\]
-</td>
-<td style="text-align:right;">
--1887.93 \[90% HDI:-3738.14, -877.92\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.050
-</td>
-<td style="text-align:right;">
-0.85
-</td>
-<td style="text-align:right;">
--4776.97 \[90% HDI:-7085.17, -3089.01\]
-</td>
-<td style="text-align:right;">
--578.52 \[90% HDI:-5392.27, 43.75\]
-</td>
-<td style="text-align:right;">
-<b>-546.15 \[90% HDI:-4586.01, 38.59\]</br>
-</td>
-<td style="text-align:right;">
--1414.07 \[90% HDI:-2755.65, -524.23\]
-</td>
-<td style="text-align:right;">
--1506.98 \[90% HDI:-2804.8, -356.36\]
-</td>
-<td style="text-align:right;">
--1449.39 \[90% HDI:-2917.05, -610.94\]
-</td>
-<td style="text-align:right;">
--1398.72 \[90% HDI:-2696.69, -570.5\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.050
-</td>
-<td style="text-align:right;">
-0.95
-</td>
-<td style="text-align:right;">
--4776.97 \[90% HDI:-7085.17, -3089.01\]
-</td>
-<td style="text-align:right;">
--578.52 \[90% HDI:-5392.27, 43.75\]
-</td>
-<td style="text-align:right;">
-<b>-401.44 \[90% HDI:-2914.26, -14.14\]</br>
-</td>
-<td style="text-align:right;">
--825.98 \[90% HDI:-1568.13, -220.52\]
-</td>
-<td style="text-align:right;">
--845.14 \[90% HDI:-1758.92, -354.78\]
-</td>
-<td style="text-align:right;">
--847.24 \[90% HDI:-1726.16, -354.78\]
-</td>
-<td style="text-align:right;">
--836.97 \[90% HDI:-1576.76, -220.52\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.075
-</td>
-<td style="text-align:right;">
-0.65
-</td>
-<td style="text-align:right;">
--4763.83 \[90% HDI:-7072.03, -3076.88\]
-</td>
-<td style="text-align:right;">
-<b>-867.57 \[90% HDI:-8638.96, 42.73\]</br>
-</td>
-<td style="text-align:right;">
--931.55 \[90% HDI:-8638.96, 42.73\]
-</td>
-<td style="text-align:right;">
--2408.6 \[90% HDI:-5267.08, -838.69\]
-</td>
-<td style="text-align:right;">
--2608.16 \[90% HDI:-5637.43, -835.36\]
-</td>
-<td style="text-align:right;">
--2423.2 \[90% HDI:-5162.59, -835.36\]
-</td>
-<td style="text-align:right;">
--2471.67 \[90% HDI:-5162.59, -1106.08\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.075
-</td>
-<td style="text-align:right;">
-0.75
-</td>
-<td style="text-align:right;">
--4763.83 \[90% HDI:-7072.03, -3076.88\]
-</td>
-<td style="text-align:right;">
-<b>-867.57 \[90% HDI:-8638.96, 42.73\]</br>
-</td>
-<td style="text-align:right;">
--882.99 \[90% HDI:-8597.44, 38.36\]
-</td>
-<td style="text-align:right;">
--2011.28 \[90% HDI:-4379.14, -862.99\]
-</td>
-<td style="text-align:right;">
--2015.89 \[90% HDI:-4584.46, -604.18\]
-</td>
-<td style="text-align:right;">
--2036.03 \[90% HDI:-4379.14, -796.55\]
-</td>
-<td style="text-align:right;">
--2024.99 \[90% HDI:-4551.24, -1059.7\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.075
-</td>
-<td style="text-align:right;">
-0.85
-</td>
-<td style="text-align:right;">
--4763.83 \[90% HDI:-7072.03, -3076.88\]
-</td>
-<td style="text-align:right;">
--867.57 \[90% HDI:-8638.96, 42.73\]
-</td>
-<td style="text-align:right;">
-<b>-828.55 \[90% HDI:-6988.04, 14.21\]</br>
-</td>
-<td style="text-align:right;">
--1576.32 \[90% HDI:-3478.38, -721.12\]
-</td>
-<td style="text-align:right;">
--1605.52 \[90% HDI:-3513.7, -636.65\]
-</td>
-<td style="text-align:right;">
--1584.92 \[90% HDI:-3513.7, -664.68\]
-</td>
-<td style="text-align:right;">
--1573.85 \[90% HDI:-3363.2, -610.86\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.075
-</td>
-<td style="text-align:right;">
-0.95
-</td>
-<td style="text-align:right;">
--4763.83 \[90% HDI:-7072.03, -3076.88\]
-</td>
-<td style="text-align:right;">
--867.57 \[90% HDI:-8638.96, 42.73\]
-</td>
-<td style="text-align:right;">
-<b>-615.36 \[90% HDI:-3722.57, -83.35\]</br>
-</td>
-<td style="text-align:right;">
--1009.09 \[90% HDI:-2052.76, -410.9\]
-</td>
-<td style="text-align:right;">
--1045.34 \[90% HDI:-2046.95, -334.81\]
-</td>
-<td style="text-align:right;">
--1025.15 \[90% HDI:-2046.95, -400.44\]
-</td>
-<td style="text-align:right;">
--1031.85 \[90% HDI:-2068.79, -400.44\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.100
-</td>
-<td style="text-align:right;">
-0.65
-</td>
-<td style="text-align:right;">
--4752.46 \[90% HDI:-7060.4, -3064.75\]
-</td>
-<td style="text-align:right;">
-<b>-1206.59 \[90% HDI:-11180.6, 41.61\]</br>
-</td>
-<td style="text-align:right;">
--1212.53 \[90% HDI:-11180.6, 38.01\]
-</td>
-<td style="text-align:right;">
--2650.51 \[90% HDI:-6332.53, -955.84\]
-</td>
-<td style="text-align:right;">
--2742.98 \[90% HDI:-6326.81, -737.73\]
-</td>
-<td style="text-align:right;">
--2643.8 \[90% HDI:-6420.41, -940.12\]
-</td>
-<td style="text-align:right;">
--2683.73 \[90% HDI:-6326.81, -1167.98\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.100
-</td>
-<td style="text-align:right;">
-0.75
-</td>
-<td style="text-align:right;">
--4752.46 \[90% HDI:-7060.4, -3064.75\]
-</td>
-<td style="text-align:right;">
--1206.59 \[90% HDI:-11180.6, 41.61\]
-</td>
-<td style="text-align:right;">
-<b>-1170.32 \[90% HDI:-10345.41, 38.01\]</br>
-</td>
-<td style="text-align:right;">
--2141.05 \[90% HDI:-4945.27, -957.86\]
-</td>
-<td style="text-align:right;">
--2195.05 \[90% HDI:-5191.27, -783\]
-</td>
-<td style="text-align:right;">
--2180.94 \[90% HDI:-5059.35, -921.1\]
-</td>
-<td style="text-align:right;">
--2173.64 \[90% HDI:-4919.05, -981.81\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.100
-</td>
-<td style="text-align:right;">
-0.85
-</td>
-<td style="text-align:right;">
--4752.46 \[90% HDI:-7060.4, -3064.75\]
-</td>
-<td style="text-align:right;">
--1206.59 \[90% HDI:-11180.6, 41.61\]
-</td>
-<td style="text-align:right;">
-<b>-1050.72 \[90% HDI:-7054.92, 11.69\]</br>
-</td>
-<td style="text-align:right;">
--1748.07 \[90% HDI:-3925.82, -771.96\]
-</td>
-<td style="text-align:right;">
--1797.9 \[90% HDI:-3778.51, -609.92\]
-</td>
-<td style="text-align:right;">
--1761.12 \[90% HDI:-3865.01, -709.64\]
-</td>
-<td style="text-align:right;">
--1752.82 \[90% HDI:-3789.23, -658.93\]
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.100
-</td>
-<td style="text-align:right;">
-0.95
-</td>
-<td style="text-align:right;">
--4752.46 \[90% HDI:-7060.4, -3064.75\]
-</td>
-<td style="text-align:right;">
--1206.59 \[90% HDI:-11180.6, 41.61\]
-</td>
-<td style="text-align:right;">
-<b>-782.88 \[90% HDI:-4256.73, -163.43\]</br>
-</td>
-<td style="text-align:right;">
--1152.88 \[90% HDI:-2378.19, -490.18\]
-</td>
-<td style="text-align:right;">
--1154.08 \[90% HDI:-2337.5, -440.21\]
-</td>
-<td style="text-align:right;">
--1167.47 \[90% HDI:-2373.73, -468.47\]
-</td>
-<td style="text-align:right;">
--1138.73 \[90% HDI:-2337.5, -440.21\]
-</td>
-</tr>
-</tbody>
-</table>
+make_table <- function(l, results=T, save_path=NULL) {
+  if(results){
+    tbl <- rbindlist(extract_summaries(l)) 
+  } else {
+    tbl <- rbindlist(extract_thresholds_summary(l)) 
+  }
+  tbl <- 
+    tbl %>%
+    group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
+    mutate(.group_id=cur_group_id()) %>%
+    ungroup() %>%
+    select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
+    select(event_rate, sim_auc, everything()) %>%
+    pivot_wider(names_from="method", values_from="summary") %>% 
+    formattable() %>%
+    kable_styling()
+  if(!is.null(save_path)) {
+    save_kable(tbl, save_path)
+  }
+}
 
-``` r
-  #kable_styling() 
+make_table(ll1, results=T, "output/falls_nmb_summary.html")
+make_table(ll1, results=F, "output/falls_thresholds_summary.html")
+
+make_table(ll2, results=T, "output/icu_nmb_summary.html")
+make_table(ll2, results=F, "output/icu_thresholds_summary.html")
 ```
 
 ``` r
@@ -1712,13 +727,268 @@ ll4 <- parallel::parLapply(
   )
 )
 
-cowplot::plot_grid(plotlist=extract_plots(ll3), ncol=length(unique(g2$sim_auc)))
+cowplot::plot_grid(plotlist=extract_result_plots(ll3), ncol=length(unique(g2$sim_auc)))
 ```
+
+    ## Picking joint bandwidth of 24.9
+    ## Picking joint bandwidth of 24.9
+
+    ## Picking joint bandwidth of 22.4
+    ## Picking joint bandwidth of 22.4
+
+    ## Picking joint bandwidth of 18.3
+    ## Picking joint bandwidth of 18.3
+
+    ## Picking joint bandwidth of 21.7
+    ## Picking joint bandwidth of 21.7
+
+    ## Picking joint bandwidth of 22.6
+    ## Picking joint bandwidth of 22.6
+
+    ## Picking joint bandwidth of 21.6
+    ## Picking joint bandwidth of 21.6
+
+    ## Picking joint bandwidth of 19.2
+    ## Picking joint bandwidth of 19.2
+
+    ## Picking joint bandwidth of 18.5
+    ## Picking joint bandwidth of 18.5
+
+    ## Picking joint bandwidth of 23.8
+    ## Picking joint bandwidth of 23.8
+
+    ## Picking joint bandwidth of 18.6
+    ## Picking joint bandwidth of 18.6
+
+    ## Picking joint bandwidth of 19.8
+    ## Picking joint bandwidth of 19.8
+
+    ## Picking joint bandwidth of 18.3
+    ## Picking joint bandwidth of 18.3
+
+    ## Picking joint bandwidth of 17.6
+    ## Picking joint bandwidth of 17.6
+
+    ## Picking joint bandwidth of 16.7
+    ## Picking joint bandwidth of 16.7
+
+    ## Picking joint bandwidth of 16.6
+    ## Picking joint bandwidth of 16.6
+
+    ## Picking joint bandwidth of 15.5
+    ## Picking joint bandwidth of 15.5
+
+    ## Picking joint bandwidth of 20.9
+    ## Picking joint bandwidth of 20.9
+
+    ## Picking joint bandwidth of 21
+    ## Picking joint bandwidth of 21
+
+    ## Picking joint bandwidth of 19.1
+    ## Picking joint bandwidth of 19.1
+
+    ## Picking joint bandwidth of 20.7
+    ## Picking joint bandwidth of 20.7
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
 ``` r
-cowplot::plot_grid(plotlist=extract_plots(ll4), ncol=length(unique(g2$sim_auc)))
+cowplot::plot_grid(plotlist=extract_result_plots(ll4), ncol=length(unique(g2$sim_auc)))
 ```
 
+    ## Picking joint bandwidth of 561
+
+    ## Picking joint bandwidth of 561
+
+    ## Picking joint bandwidth of 473
+    ## Picking joint bandwidth of 473
+
+    ## Picking joint bandwidth of 419
+    ## Picking joint bandwidth of 419
+
+    ## Picking joint bandwidth of 305
+    ## Picking joint bandwidth of 305
+
+    ## Picking joint bandwidth of 385
+    ## Picking joint bandwidth of 385
+
+    ## Picking joint bandwidth of 305
+    ## Picking joint bandwidth of 305
+
+    ## Picking joint bandwidth of 260
+    ## Picking joint bandwidth of 260
+
+    ## Picking joint bandwidth of 186
+    ## Picking joint bandwidth of 186
+
+    ## Picking joint bandwidth of 336
+    ## Picking joint bandwidth of 336
+
+    ## Picking joint bandwidth of 320
+    ## Picking joint bandwidth of 320
+
+    ## Picking joint bandwidth of 303
+    ## Picking joint bandwidth of 303
+
+    ## Picking joint bandwidth of 228
+    ## Picking joint bandwidth of 228
+
+    ## Picking joint bandwidth of 293
+    ## Picking joint bandwidth of 293
+
+    ## Picking joint bandwidth of 263
+    ## Picking joint bandwidth of 263
+
+    ## Picking joint bandwidth of 234
+    ## Picking joint bandwidth of 234
+
+    ## Picking joint bandwidth of 205
+    ## Picking joint bandwidth of 205
+
+    ## Picking joint bandwidth of 360
+    ## Picking joint bandwidth of 360
+
+    ## Picking joint bandwidth of 327
+    ## Picking joint bandwidth of 327
+
+    ## Picking joint bandwidth of 284
+    ## Picking joint bandwidth of 284
+
+    ## Picking joint bandwidth of 250
+    ## Picking joint bandwidth of 250
+
 ![](experiment_1_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
+
+``` r
+cowplot::plot_grid(plotlist=extract_threshold_plots(ll3), ncol=length(unique(g2$sim_auc)))
+```
+
+    ## Picking joint bandwidth of 0.0516
+
+    ## Picking joint bandwidth of 0.0516
+
+    ## Picking joint bandwidth of 0.0495
+    ## Picking joint bandwidth of 0.0495
+
+    ## Picking joint bandwidth of 0.0529
+    ## Picking joint bandwidth of 0.0529
+
+    ## Picking joint bandwidth of 0.103
+    ## Picking joint bandwidth of 0.103
+
+    ## Picking joint bandwidth of 0.0467
+    ## Picking joint bandwidth of 0.0467
+
+    ## Picking joint bandwidth of 0.0244
+    ## Picking joint bandwidth of 0.0244
+
+    ## Picking joint bandwidth of 0.011
+    ## Picking joint bandwidth of 0.011
+
+    ## Picking joint bandwidth of 0.0231
+    ## Picking joint bandwidth of 0.0231
+
+    ## Picking joint bandwidth of 0.0421
+    ## Picking joint bandwidth of 0.0421
+
+    ## Picking joint bandwidth of 0.00581
+    ## Picking joint bandwidth of 0.00581
+
+    ## Picking joint bandwidth of 0.00677
+    ## Picking joint bandwidth of 0.00677
+
+    ## Picking joint bandwidth of 0.00981
+    ## Picking joint bandwidth of 0.00981
+
+    ## Picking joint bandwidth of 0.00662
+    ## Picking joint bandwidth of 0.00662
+
+    ## Picking joint bandwidth of 0.0034
+    ## Picking joint bandwidth of 0.0034
+
+    ## Picking joint bandwidth of 0.00591
+    ## Picking joint bandwidth of 0.00591
+
+    ## Picking joint bandwidth of 0.00613
+    ## Picking joint bandwidth of 0.00613
+
+    ## Picking joint bandwidth of 0.00388
+    ## Picking joint bandwidth of 0.00388
+
+    ## Picking joint bandwidth of 0.00238
+    ## Picking joint bandwidth of 0.00238
+
+    ## Picking joint bandwidth of 0.00272
+    ## Picking joint bandwidth of 0.00272
+
+    ## Picking joint bandwidth of 0.00377
+    ## Picking joint bandwidth of 0.00377
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-6-3.png)<!-- -->
+
+``` r
+cowplot::plot_grid(plotlist=extract_threshold_plots(ll4), ncol=length(unique(g2$sim_auc)))
+```
+
+    ## Picking joint bandwidth of 0.0419
+
+    ## Picking joint bandwidth of 0.0419
+
+    ## Picking joint bandwidth of 0.0422
+    ## Picking joint bandwidth of 0.0422
+
+    ## Picking joint bandwidth of 0.0417
+    ## Picking joint bandwidth of 0.0417
+
+    ## Picking joint bandwidth of 0.0872
+    ## Picking joint bandwidth of 0.0872
+
+    ## Picking joint bandwidth of 0.0358
+    ## Picking joint bandwidth of 0.0358
+
+    ## Picking joint bandwidth of 0.0301
+    ## Picking joint bandwidth of 0.0301
+
+    ## Picking joint bandwidth of 0.0367
+    ## Picking joint bandwidth of 0.0367
+
+    ## Picking joint bandwidth of 0.0358
+    ## Picking joint bandwidth of 0.0358
+
+    ## Picking joint bandwidth of 0.0368
+    ## Picking joint bandwidth of 0.0368
+
+    ## Picking joint bandwidth of 0.037
+    ## Picking joint bandwidth of 0.037
+
+    ## Picking joint bandwidth of 0.0199
+    ## Picking joint bandwidth of 0.0199
+
+    ## Picking joint bandwidth of 0.0162
+    ## Picking joint bandwidth of 0.0162
+
+    ## Picking joint bandwidth of 0.0395
+    ## Picking joint bandwidth of 0.0395
+
+    ## Picking joint bandwidth of 0.0321
+    ## Picking joint bandwidth of 0.0321
+
+    ## Picking joint bandwidth of 0.0123
+    ## Picking joint bandwidth of 0.0123
+
+    ## Picking joint bandwidth of 0.0134
+    ## Picking joint bandwidth of 0.0134
+
+    ## Picking joint bandwidth of 0.0388
+    ## Picking joint bandwidth of 0.0388
+
+    ## Picking joint bandwidth of 0.0283
+    ## Picking joint bandwidth of 0.0283
+
+    ## Picking joint bandwidth of 0.00865
+    ## Picking joint bandwidth of 0.00865
+
+    ## Picking joint bandwidth of 0.00735
+    ## Picking joint bandwidth of 0.00735
+
+![](experiment_1_files/figure-gfm/unnamed-chunk-6-4.png)<!-- -->
