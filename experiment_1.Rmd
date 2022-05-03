@@ -185,6 +185,19 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
                           seed=42){
   
   if(!is.null(seed)) set.seed(seed)
+  if(missing(sample_size)) {
+    pmsamp <- pmsampsize::pmsampsize(
+      type="b",
+      cstatistic=sim_auc,
+      parameters=1,
+      prevalence=event_rate
+    )
+    sample_size <- pmsamp$sample_size
+    min_events <- pmsamp$events
+    check_events <- TRUE
+  } else {
+    check_events <- FALSE
+  }
   
   i <- 0
   while(i < n_sims){
@@ -192,6 +205,11 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     valid_sample <- get_sample(auc=sim_auc, n_samples=n_valid, prevalence=event_rate)
     if(length(unique(train_sample$actual))!=2 | length(unique(valid_sample$actual))!=2){
       next
+    }
+    if(check_events){
+      if(sum(train_sample$actual) < min_events){
+        next
+      }
     }
     i <- i + 1
     model <- glm(actual~predicted, data=train_sample, family=binomial())
@@ -286,13 +304,23 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   res
 }
 
-# x <- do_simulation(
-#   sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.8, event_rate=0.025,
-#   fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-#   plot_type = "density",
-#   scale=1
-# )
-# x
+x <- do_simulation(
+  # sample_size=500, 
+  n_sims=1000, n_valid=1000, sim_auc=0.8, event_rate=0.01,
+  fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
+  # fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+  plot_type = "density",
+  scale=1
+)
+
+x <- do_simulation(
+  # sample_size=500, 
+  n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.01,
+  # fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
+  fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+  plot_type = "density",
+  scale=1
+)
 ```
 
 
@@ -387,9 +415,9 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 #### I think that this is because, for models with very high discrimination, they're able to correctly classify a larger proportion of samples, and there are fewer which are classified differently based on selection method. The difference is greater for smaller event rates because a false negative is the most costly classification, and only the cost-based method is "aware" of this. This is also why, when the event rate is very high, there is not much of a difference between methods (cost-based method is focused on correctly classifying the majority class but so are the other methods).
 ```{r, fig.height=24, fig.width=12}
 simulation_config <- list(
-  training_sample_size = 500,
+  # training_sample_size = 500,
   n_simulations = 200,
-  validation_sample_size = 1000,
+  validation_sample_size = 10000,
   hdi_prob=0.9
 )
 library(parallel)
@@ -422,7 +450,7 @@ ll1 <- parallel::parLapply(
   cl,
   1:nrow(g),
   function(i) do_simulation(
-    sample_size=simulation_config$training_sample_size,
+    # sample_size=simulation_config$training_sample_size,
     n_sims=simulation_config$n_simulations,
     n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
@@ -437,7 +465,7 @@ ll2 <- parallel::parLapply(
   cl,
   1:nrow(g),
   function(i) do_simulation(
-    sample_size=simulation_config$training_sample_size,
+    # sample_size=simulation_config$training_sample_size,
     n_sims=simulation_config$n_simulations,
     n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
@@ -491,72 +519,70 @@ make_table(ll1, results=F, save_path="output/falls_thresholds_summary.html")
 make_table(ll2, results=T, save_path="output/icu_nmb_summary.html")
 make_table(ll2, results=F, save_path="output/icu_thresholds_summary.html")
 
-
-
 ```
 
-```{r, fig.height=24, fig.width=12}
+```{r, fig.height=24, fig.width=12, include=F}
 
-library(parallel)
-n_cluster <- detectCores()
-cl <- makeCluster(n_cluster)
-cl <- parallelly::autoStopCluster(cl)
-
-g2 <- expand.grid(
-  sim_auc=c(0.65, 0.75, 0.85, 0.95),
-  train_size=c(100, 300, 1000, 3000, 10000)
-)
-
-clusterExport(cl, {
-  c("do_simulation", "g2", "get_nmb", "get_nmb_est", "get_nmb_ICU", "get_nmb_est_ICU", "params")
-})
-
-invisible(clusterEvalQ(cl, {
-  library(tidyverse)
-  library(data.table)
-  library(ggridges)
-  library(bayestestR)
-  library(cutpointr)
-  source("src/utils.R")
-  source("src/cutpoint_methods.R")
-  source("src/summary.R")
-}))
-
-
-
-ll3 <- parallel::parLapply(
-  cl,
-  1:nrow(g),
-  function(i) do_simulation(
-    sample_size=g2$train_size[i],
-    n_sims=30,
-    n_valid=5000,
-    sim_auc=g2$sim_auc[i], event_rate=0.025,
-    return_data=F, return_plot=T, return_summary=T,
-    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-    plot_type="density", scale=60
-  )
-)
-
-ll4 <- parallel::parLapply(
-  cl,
-  1:nrow(g),
-  function(i) do_simulation(
-    sample_size=g2$train_size[i],
-    n_sims=30,
-    n_valid=5000,
-    sim_auc=g2$sim_auc[i], event_rate=0.025,
-    return_data=F, return_plot=T, return_summary=T,
-    fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
-    plot_type="density", scale=60
-  )
-)
-
-cowplot::plot_grid(plotlist=extract_result_plots(ll3), ncol=length(unique(g2$sim_auc)))
-cowplot::plot_grid(plotlist=extract_result_plots(ll4), ncol=length(unique(g2$sim_auc)))
-
-cowplot::plot_grid(plotlist=extract_threshold_plots(ll3), ncol=length(unique(g2$sim_auc)))
-cowplot::plot_grid(plotlist=extract_threshold_plots(ll4), ncol=length(unique(g2$sim_auc)))
+# library(parallel)
+# n_cluster <- detectCores()
+# cl <- makeCluster(n_cluster)
+# cl <- parallelly::autoStopCluster(cl)
+# 
+# g2 <- expand.grid(
+#   sim_auc=c(0.65, 0.75, 0.85, 0.95),
+#   train_size=c(100, 300, 1000, 3000, 10000)
+# )
+# 
+# clusterExport(cl, {
+#   c("do_simulation", "g2", "get_nmb", "get_nmb_est", "get_nmb_ICU", "get_nmb_est_ICU", "params")
+# })
+# 
+# invisible(clusterEvalQ(cl, {
+#   library(tidyverse)
+#   library(data.table)
+#   library(ggridges)
+#   library(bayestestR)
+#   library(cutpointr)
+#   source("src/utils.R")
+#   source("src/cutpoint_methods.R")
+#   source("src/summary.R")
+# }))
+# 
+# 
+# 
+# ll3 <- parallel::parLapply(
+#   cl,
+#   1:nrow(g),
+#   function(i) do_simulation(
+#     sample_size=g2$train_size[i],
+#     n_sims=30,
+#     n_valid=5000,
+#     sim_auc=g2$sim_auc[i], event_rate=0.025,
+#     return_data=F, return_plot=T, return_summary=T,
+#     fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+#     plot_type="density", scale=60
+#   )
+# )
+# 
+# ll4 <- parallel::parLapply(
+#   cl,
+#   1:nrow(g),
+#   function(i) do_simulation(
+#     sample_size=g2$train_size[i],
+#     n_sims=30,
+#     n_valid=5000,
+#     sim_auc=g2$sim_auc[i], event_rate=0.025,
+#     return_data=F, return_plot=T, return_summary=T,
+#     fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
+#     plot_type="density", scale=60
+#   )
+# )
+# 
+# cowplot::plot_grid(plotlist=extract_result_plots(ll3), ncol=length(unique(g2$sim_auc)))
+# cowplot::plot_grid(plotlist=extract_result_plots(ll4), ncol=length(unique(g2$sim_auc)))
+# 
+# cowplot::plot_grid(plotlist=extract_threshold_plots(ll3), ncol=length(unique(g2$sim_auc)))
+# cowplot::plot_grid(plotlist=extract_threshold_plots(ll4), ncol=length(unique(g2$sim_auc)))
 ```
 
 

@@ -1,6 +1,6 @@
 Experiment 1
 ================
-29 April, 2022
+03 May, 2022
 
 Question: What are the differences in NMB between models where the
 Probability threshold was based on the currently available methods
@@ -188,6 +188,19 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
                           seed=42){
   
   if(!is.null(seed)) set.seed(seed)
+  if(missing(sample_size)) {
+    pmsamp <- pmsampsize::pmsampsize(
+      type="b",
+      cstatistic=sim_auc,
+      parameters=1,
+      prevalence=event_rate
+    )
+    sample_size <- pmsamp$sample_size
+    min_events <- pmsamp$events
+    check_events <- TRUE
+  } else {
+    check_events <- FALSE
+  }
   
   i <- 0
   while(i < n_sims){
@@ -195,6 +208,11 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     valid_sample <- get_sample(auc=sim_auc, n_samples=n_valid, prevalence=event_rate)
     if(length(unique(train_sample$actual))!=2 | length(unique(valid_sample$actual))!=2){
       next
+    }
+    if(check_events){
+      if(sum(train_sample$actual) < min_events){
+        next
+      }
     }
     i <- i + 1
     model <- glm(actual~predicted, data=train_sample, family=binomial())
@@ -289,14 +307,34 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   res
 }
 
-# x <- do_simulation(
-#   sample_size=500, n_sims=100, n_valid=1000, sim_auc=0.8, event_rate=0.025,
-#   fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-#   plot_type = "density",
-#   scale=1
-# )
-# x
+x <- do_simulation(
+  # sample_size=500, 
+  n_sims=1000, n_valid=1000, sim_auc=0.8, event_rate=0.01,
+  fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
+  # fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+  plot_type = "density",
+  scale=1
+)
 ```
+
+    ## Picking joint bandwidth of 139
+
+    ## Picking joint bandwidth of 0.0175
+
+``` r
+x <- do_simulation(
+  # sample_size=500, 
+  n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.01,
+  # fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
+  fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+  plot_type = "density",
+  scale=1
+)
+```
+
+    ## Picking joint bandwidth of 11.9
+
+    ## Picking joint bandwidth of 0.00708
 
 ## search through a grid of combinations of AUC and event rates to see how this influences the differences between probability threshold methods. The same costs were used in all simulations (distributions at top of document) and are resampled separately for training and validation.
 
@@ -310,9 +348,9 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 
 ``` r
 simulation_config <- list(
-  training_sample_size = 500,
+  # training_sample_size = 500,
   n_simulations = 200,
-  validation_sample_size = 1000,
+  validation_sample_size = 10000,
   hdi_prob=0.9
 )
 library(parallel)
@@ -345,7 +383,7 @@ ll1 <- parallel::parLapply(
   cl,
   1:nrow(g),
   function(i) do_simulation(
-    sample_size=simulation_config$training_sample_size,
+    # sample_size=simulation_config$training_sample_size,
     n_sims=simulation_config$n_simulations,
     n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
@@ -360,7 +398,7 @@ ll2 <- parallel::parLapply(
   cl,
   1:nrow(g),
   function(i) do_simulation(
-    sample_size=simulation_config$training_sample_size,
+    # sample_size=simulation_config$training_sample_size,
     n_sims=simulation_config$n_simulations,
     n_valid=simulation_config$validation_sample_size,
     sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
@@ -375,64 +413,65 @@ ll2 <- parallel::parLapply(
 cowplot::plot_grid(plotlist=extract_result_plots(ll1), ncol=length(unique(g$sim_auc)))
 ```
 
-    ## Picking joint bandwidth of 14.6
-    ## Picking joint bandwidth of 14.6
+    ## Picking joint bandwidth of 8.4
+    ## Picking joint bandwidth of 8.4
 
-    ## Picking joint bandwidth of 12.4
-    ## Picking joint bandwidth of 12.4
+    ## Picking joint bandwidth of 9.51
+    ## Picking joint bandwidth of 9.51
 
-    ## Picking joint bandwidth of 11.3
-    ## Picking joint bandwidth of 11.3
+    ## Picking joint bandwidth of 8.99
+    ## Picking joint bandwidth of 8.99
 
-    ## Picking joint bandwidth of 9.03
-    ## Picking joint bandwidth of 9.03
+    ## Picking joint bandwidth of 7.49
+    ## Picking joint bandwidth of 7.49
 
-    ## Picking joint bandwidth of 18.6
-    ## Picking joint bandwidth of 18.6
+    ## Picking joint bandwidth of 15.8
+    ## Picking joint bandwidth of 15.8
 
-    ## Picking joint bandwidth of 18.1
-    ## Picking joint bandwidth of 18.1
+    ## Picking joint bandwidth of 12.7
+    ## Picking joint bandwidth of 12.7
 
-    ## Picking joint bandwidth of 17.1
-    ## Picking joint bandwidth of 17.1
+    ## Picking joint bandwidth of 13.8
+    ## Picking joint bandwidth of 13.8
 
-    ## Picking joint bandwidth of 16
-    ## Picking joint bandwidth of 16
+    ## Picking joint bandwidth of 12.9
+    ## Picking joint bandwidth of 12.9
 
-    ## Picking joint bandwidth of 29.9
-    ## Picking joint bandwidth of 29.9
+    ## Picking joint bandwidth of 26.7
+    ## Picking joint bandwidth of 26.7
 
-    ## Picking joint bandwidth of 29.5
-    ## Picking joint bandwidth of 29.5
+    ## Picking joint bandwidth of 22.3
+    ## Picking joint bandwidth of 22.3
 
-    ## Picking joint bandwidth of 29
-    ## Picking joint bandwidth of 29
+    ## Picking joint bandwidth of 22.8
+    ## Picking joint bandwidth of 22.8
 
-    ## Picking joint bandwidth of 28.7
-    ## Picking joint bandwidth of 28.7
+    ## Picking joint bandwidth of 23.5
+    ## Picking joint bandwidth of 23.5
 
-    ## Picking joint bandwidth of 40.7
-    ## Picking joint bandwidth of 40.7
+    ## Picking joint bandwidth of 40.9
+    ## Picking joint bandwidth of 40.9
 
-    ## Picking joint bandwidth of 40.2
-    ## Picking joint bandwidth of 40.2
+    ## Picking joint bandwidth of 37.4
+    ## Picking joint bandwidth of 37.4
 
-    ## Picking joint bandwidth of 39.8
-    ## Picking joint bandwidth of 39.8
-    ## Picking joint bandwidth of 39.8
-    ## Picking joint bandwidth of 39.8
+    ## Picking joint bandwidth of 34.7
+    ## Picking joint bandwidth of 34.7
 
-    ## Picking joint bandwidth of 52.1
-    ## Picking joint bandwidth of 52.1
+    ## Picking joint bandwidth of 36.6
+    ## Picking joint bandwidth of 36.6
 
-    ## Picking joint bandwidth of 52.4
-    ## Picking joint bandwidth of 52.4
+    ## Picking joint bandwidth of 42.4
+    ## Picking joint bandwidth of 42.4
 
-    ## Picking joint bandwidth of 52
-    ## Picking joint bandwidth of 52
+    ## Picking joint bandwidth of 45.5
+    ## Picking joint bandwidth of 45.5
 
-    ## Picking joint bandwidth of 52.3
-    ## Picking joint bandwidth of 52.3
+    ## Picking joint bandwidth of 47
+    ## Picking joint bandwidth of 47
+
+    ## Picking joint bandwidth of 47.2
+    ## Picking joint bandwidth of 47.2
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
 
@@ -441,66 +480,66 @@ ggsave(filename="output/falls_simulations_nmb.jpeg", height=24, width=12)
 cowplot::plot_grid(plotlist=extract_result_plots(ll2), ncol=length(unique(g$sim_auc)))
 ```
 
-    ## Picking joint bandwidth of 247
+    ## Picking joint bandwidth of 223
 
-    ## Picking joint bandwidth of 247
+    ## Picking joint bandwidth of 223
 
-    ## Picking joint bandwidth of 224
-    ## Picking joint bandwidth of 224
+    ## Picking joint bandwidth of 203
+    ## Picking joint bandwidth of 203
 
-    ## Picking joint bandwidth of 190
-    ## Picking joint bandwidth of 190
+    ## Picking joint bandwidth of 174
+    ## Picking joint bandwidth of 174
 
-    ## Picking joint bandwidth of 137
-    ## Picking joint bandwidth of 137
+    ## Picking joint bandwidth of 154
+    ## Picking joint bandwidth of 154
 
-    ## Picking joint bandwidth of 304
-    ## Picking joint bandwidth of 304
+    ## Picking joint bandwidth of 284
+    ## Picking joint bandwidth of 284
 
-    ## Picking joint bandwidth of 259
-    ## Picking joint bandwidth of 259
+    ## Picking joint bandwidth of 253
+    ## Picking joint bandwidth of 253
 
-    ## Picking joint bandwidth of 219
-    ## Picking joint bandwidth of 219
+    ## Picking joint bandwidth of 220
+    ## Picking joint bandwidth of 220
 
-    ## Picking joint bandwidth of 180
-    ## Picking joint bandwidth of 180
+    ## Picking joint bandwidth of 185
+    ## Picking joint bandwidth of 185
 
-    ## Picking joint bandwidth of 376
-    ## Picking joint bandwidth of 376
+    ## Picking joint bandwidth of 351
+    ## Picking joint bandwidth of 351
 
-    ## Picking joint bandwidth of 336
-    ## Picking joint bandwidth of 336
+    ## Picking joint bandwidth of 344
+    ## Picking joint bandwidth of 344
 
-    ## Picking joint bandwidth of 301
-    ## Picking joint bandwidth of 301
+    ## Picking joint bandwidth of 339
+    ## Picking joint bandwidth of 339
 
-    ## Picking joint bandwidth of 233
-    ## Picking joint bandwidth of 233
+    ## Picking joint bandwidth of 287
+    ## Picking joint bandwidth of 287
 
-    ## Picking joint bandwidth of 474
-    ## Picking joint bandwidth of 474
+    ## Picking joint bandwidth of 387
+    ## Picking joint bandwidth of 387
 
-    ## Picking joint bandwidth of 427
-    ## Picking joint bandwidth of 427
+    ## Picking joint bandwidth of 419
+    ## Picking joint bandwidth of 419
 
-    ## Picking joint bandwidth of 379
-    ## Picking joint bandwidth of 379
+    ## Picking joint bandwidth of 383
+    ## Picking joint bandwidth of 383
 
     ## Picking joint bandwidth of 294
     ## Picking joint bandwidth of 294
 
-    ## Picking joint bandwidth of 586
-    ## Picking joint bandwidth of 586
+    ## Picking joint bandwidth of 509
+    ## Picking joint bandwidth of 509
 
-    ## Picking joint bandwidth of 538
-    ## Picking joint bandwidth of 538
+    ## Picking joint bandwidth of 617
+    ## Picking joint bandwidth of 617
 
-    ## Picking joint bandwidth of 458
-    ## Picking joint bandwidth of 458
+    ## Picking joint bandwidth of 530
+    ## Picking joint bandwidth of 530
 
-    ## Picking joint bandwidth of 345
-    ## Picking joint bandwidth of 345
+    ## Picking joint bandwidth of 404
+    ## Picking joint bandwidth of 404
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-5-2.png)<!-- -->
 
@@ -510,66 +549,66 @@ ggsave(filename="output/icu_simulations_nmb.jpeg", height=24, width=12)
 cowplot::plot_grid(plotlist=extract_threshold_plots(ll1), ncol=length(unique(g$sim_auc)))
 ```
 
-    ## Picking joint bandwidth of 0.0286
+    ## Picking joint bandwidth of 0.0295
 
-    ## Picking joint bandwidth of 0.0286
+    ## Picking joint bandwidth of 0.0295
 
-    ## Picking joint bandwidth of 0.0302
-    ## Picking joint bandwidth of 0.0302
+    ## Picking joint bandwidth of 0.028
+    ## Picking joint bandwidth of 0.028
 
-    ## Picking joint bandwidth of 0.0188
-    ## Picking joint bandwidth of 0.0188
+    ## Picking joint bandwidth of 0.00786
+    ## Picking joint bandwidth of 0.00786
 
-    ## Picking joint bandwidth of 0.0146
-    ## Picking joint bandwidth of 0.0146
+    ## Picking joint bandwidth of 0.0418
+    ## Picking joint bandwidth of 0.0418
 
-    ## Picking joint bandwidth of 0.0305
-    ## Picking joint bandwidth of 0.0305
+    ## Picking joint bandwidth of 0.0269
+    ## Picking joint bandwidth of 0.0269
 
-    ## Picking joint bandwidth of 0.00735
-    ## Picking joint bandwidth of 0.00735
+    ## Picking joint bandwidth of 0.00526
+    ## Picking joint bandwidth of 0.00526
 
-    ## Picking joint bandwidth of 0.00633
-    ## Picking joint bandwidth of 0.00633
+    ## Picking joint bandwidth of 0.00989
+    ## Picking joint bandwidth of 0.00989
 
-    ## Picking joint bandwidth of 0.0105
-    ## Picking joint bandwidth of 0.0105
+    ## Picking joint bandwidth of 0.0421
+    ## Picking joint bandwidth of 0.0421
 
-    ## Picking joint bandwidth of 0.00506
-    ## Picking joint bandwidth of 0.00506
+    ## Picking joint bandwidth of 0.00384
+    ## Picking joint bandwidth of 0.00384
 
-    ## Picking joint bandwidth of 0.00571
-    ## Picking joint bandwidth of 0.00571
+    ## Picking joint bandwidth of 0.00766
+    ## Picking joint bandwidth of 0.00766
 
-    ## Picking joint bandwidth of 0.0075
-    ## Picking joint bandwidth of 0.0075
+    ## Picking joint bandwidth of 0.0136
+    ## Picking joint bandwidth of 0.0136
 
-    ## Picking joint bandwidth of 0.0109
-    ## Picking joint bandwidth of 0.0109
+    ## Picking joint bandwidth of 0.0437
+    ## Picking joint bandwidth of 0.0437
 
-    ## Picking joint bandwidth of 0.00468
-    ## Picking joint bandwidth of 0.00468
+    ## Picking joint bandwidth of 0.00481
+    ## Picking joint bandwidth of 0.00481
 
-    ## Picking joint bandwidth of 0.00613
-    ## Picking joint bandwidth of 0.00613
+    ## Picking joint bandwidth of 0.00922
+    ## Picking joint bandwidth of 0.00922
 
-    ## Picking joint bandwidth of 0.00843
-    ## Picking joint bandwidth of 0.00843
+    ## Picking joint bandwidth of 0.014
+    ## Picking joint bandwidth of 0.014
 
-    ## Picking joint bandwidth of 0.0125
-    ## Picking joint bandwidth of 0.0125
+    ## Picking joint bandwidth of 0.0212
+    ## Picking joint bandwidth of 0.0212
 
-    ## Picking joint bandwidth of 0.00587
-    ## Picking joint bandwidth of 0.00587
+    ## Picking joint bandwidth of 0.00525
+    ## Picking joint bandwidth of 0.00525
 
-    ## Picking joint bandwidth of 0.00673
-    ## Picking joint bandwidth of 0.00673
+    ## Picking joint bandwidth of 0.0108
+    ## Picking joint bandwidth of 0.0108
 
-    ## Picking joint bandwidth of 0.00973
-    ## Picking joint bandwidth of 0.00973
+    ## Picking joint bandwidth of 0.0145
+    ## Picking joint bandwidth of 0.0145
 
-    ## Picking joint bandwidth of 0.0129
-    ## Picking joint bandwidth of 0.0129
+    ## Picking joint bandwidth of 0.023
+    ## Picking joint bandwidth of 0.023
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-5-3.png)<!-- -->
 
@@ -578,66 +617,66 @@ ggsave(filename="output/falls_simulations_thresholds.jpeg", height=24, width=12)
 cowplot::plot_grid(plotlist=extract_threshold_plots(ll2), ncol=length(unique(g$sim_auc)))
 ```
 
-    ## Picking joint bandwidth of 0.0225
+    ## Picking joint bandwidth of 0.0187
 
-    ## Picking joint bandwidth of 0.0225
-
-    ## Picking joint bandwidth of 0.021
-    ## Picking joint bandwidth of 0.021
+    ## Picking joint bandwidth of 0.0187
 
     ## Picking joint bandwidth of 0.0232
     ## Picking joint bandwidth of 0.0232
 
-    ## Picking joint bandwidth of 0.022
-    ## Picking joint bandwidth of 0.022
+    ## Picking joint bandwidth of 0.0241
+    ## Picking joint bandwidth of 0.0241
 
-    ## Picking joint bandwidth of 0.0269
-    ## Picking joint bandwidth of 0.0269
+    ## Picking joint bandwidth of 0.0354
+    ## Picking joint bandwidth of 0.0354
 
-    ## Picking joint bandwidth of 0.025
-    ## Picking joint bandwidth of 0.025
-
-    ## Picking joint bandwidth of 0.0218
-    ## Picking joint bandwidth of 0.0218
-
-    ## Picking joint bandwidth of 0.017
-    ## Picking joint bandwidth of 0.017
-
-    ## Picking joint bandwidth of 0.0268
-    ## Picking joint bandwidth of 0.0268
-
-    ## Picking joint bandwidth of 0.0242
-    ## Picking joint bandwidth of 0.0242
-
-    ## Picking joint bandwidth of 0.0134
-    ## Picking joint bandwidth of 0.0134
-
-    ## Picking joint bandwidth of 0.0151
-    ## Picking joint bandwidth of 0.0151
-
-    ## Picking joint bandwidth of 0.0269
-    ## Picking joint bandwidth of 0.0269
-
-    ## Picking joint bandwidth of 0.0151
-    ## Picking joint bandwidth of 0.0151
-
-    ## Picking joint bandwidth of 0.0129
-    ## Picking joint bandwidth of 0.0129
-
-    ## Picking joint bandwidth of 0.0167
-    ## Picking joint bandwidth of 0.0167
+    ## Picking joint bandwidth of 0.0234
+    ## Picking joint bandwidth of 0.0234
 
     ## Picking joint bandwidth of 0.0262
     ## Picking joint bandwidth of 0.0262
 
-    ## Picking joint bandwidth of 0.0129
-    ## Picking joint bandwidth of 0.0129
+    ## Picking joint bandwidth of 0.0245
+    ## Picking joint bandwidth of 0.0245
 
-    ## Picking joint bandwidth of 0.0117
-    ## Picking joint bandwidth of 0.0117
+    ## Picking joint bandwidth of 0.0415
+    ## Picking joint bandwidth of 0.0415
 
-    ## Picking joint bandwidth of 0.0173
-    ## Picking joint bandwidth of 0.0173
+    ## Picking joint bandwidth of 0.0265
+    ## Picking joint bandwidth of 0.0265
+
+    ## Picking joint bandwidth of 0.0243
+    ## Picking joint bandwidth of 0.0243
+
+    ## Picking joint bandwidth of 0.0244
+    ## Picking joint bandwidth of 0.0244
+
+    ## Picking joint bandwidth of 0.0397
+    ## Picking joint bandwidth of 0.0397
+
+    ## Picking joint bandwidth of 0.0251
+    ## Picking joint bandwidth of 0.0251
+
+    ## Picking joint bandwidth of 0.0203
+    ## Picking joint bandwidth of 0.0203
+
+    ## Picking joint bandwidth of 0.02
+    ## Picking joint bandwidth of 0.02
+
+    ## Picking joint bandwidth of 0.0328
+    ## Picking joint bandwidth of 0.0328
+
+    ## Picking joint bandwidth of 0.0245
+    ## Picking joint bandwidth of 0.0245
+
+    ## Picking joint bandwidth of 0.0188
+    ## Picking joint bandwidth of 0.0188
+
+    ## Picking joint bandwidth of 0.0195
+    ## Picking joint bandwidth of 0.0195
+
+    ## Picking joint bandwidth of 0.0324
+    ## Picking joint bandwidth of 0.0324
 
 ![](experiment_1_files/figure-gfm/unnamed-chunk-5-4.png)<!-- -->
 
@@ -676,325 +715,3 @@ make_table(ll1, results=F, save_path="output/falls_thresholds_summary.html")
 make_table(ll2, results=T, save_path="output/icu_nmb_summary.html")
 make_table(ll2, results=F, save_path="output/icu_thresholds_summary.html")
 ```
-
-``` r
-library(parallel)
-n_cluster <- detectCores()
-cl <- makeCluster(n_cluster)
-cl <- parallelly::autoStopCluster(cl)
-
-g2 <- expand.grid(
-  sim_auc=c(0.65, 0.75, 0.85, 0.95),
-  train_size=c(100, 300, 1000, 3000, 10000)
-)
-
-clusterExport(cl, {
-  c("do_simulation", "g2", "get_nmb", "get_nmb_est", "get_nmb_ICU", "get_nmb_est_ICU", "params")
-})
-
-invisible(clusterEvalQ(cl, {
-  library(tidyverse)
-  library(data.table)
-  library(ggridges)
-  library(bayestestR)
-  library(cutpointr)
-  source("src/utils.R")
-  source("src/cutpoint_methods.R")
-  source("src/summary.R")
-}))
-
-
-
-ll3 <- parallel::parLapply(
-  cl,
-  1:nrow(g),
-  function(i) do_simulation(
-    sample_size=g2$train_size[i],
-    n_sims=30,
-    n_valid=5000,
-    sim_auc=g2$sim_auc[i], event_rate=0.025,
-    return_data=F, return_plot=T, return_summary=T,
-    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-    plot_type="density", scale=60
-  )
-)
-
-ll4 <- parallel::parLapply(
-  cl,
-  1:nrow(g),
-  function(i) do_simulation(
-    sample_size=g2$train_size[i],
-    n_sims=30,
-    n_valid=5000,
-    sim_auc=g2$sim_auc[i], event_rate=0.025,
-    return_data=F, return_plot=T, return_summary=T,
-    fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
-    plot_type="density", scale=60
-  )
-)
-
-cowplot::plot_grid(plotlist=extract_result_plots(ll3), ncol=length(unique(g2$sim_auc)))
-```
-
-    ## Picking joint bandwidth of 24.9
-    ## Picking joint bandwidth of 24.9
-
-    ## Picking joint bandwidth of 22.4
-    ## Picking joint bandwidth of 22.4
-
-    ## Picking joint bandwidth of 18.3
-    ## Picking joint bandwidth of 18.3
-
-    ## Picking joint bandwidth of 21.7
-    ## Picking joint bandwidth of 21.7
-
-    ## Picking joint bandwidth of 22.6
-    ## Picking joint bandwidth of 22.6
-
-    ## Picking joint bandwidth of 21.6
-    ## Picking joint bandwidth of 21.6
-
-    ## Picking joint bandwidth of 19.2
-    ## Picking joint bandwidth of 19.2
-
-    ## Picking joint bandwidth of 18.5
-    ## Picking joint bandwidth of 18.5
-
-    ## Picking joint bandwidth of 23.8
-    ## Picking joint bandwidth of 23.8
-
-    ## Picking joint bandwidth of 18.6
-    ## Picking joint bandwidth of 18.6
-
-    ## Picking joint bandwidth of 19.8
-    ## Picking joint bandwidth of 19.8
-
-    ## Picking joint bandwidth of 18.3
-    ## Picking joint bandwidth of 18.3
-
-    ## Picking joint bandwidth of 17.6
-    ## Picking joint bandwidth of 17.6
-
-    ## Picking joint bandwidth of 16.7
-    ## Picking joint bandwidth of 16.7
-
-    ## Picking joint bandwidth of 16.6
-    ## Picking joint bandwidth of 16.6
-
-    ## Picking joint bandwidth of 15.5
-    ## Picking joint bandwidth of 15.5
-
-    ## Picking joint bandwidth of 20.9
-    ## Picking joint bandwidth of 20.9
-
-    ## Picking joint bandwidth of 21
-    ## Picking joint bandwidth of 21
-
-    ## Picking joint bandwidth of 19.1
-    ## Picking joint bandwidth of 19.1
-
-    ## Picking joint bandwidth of 20.7
-    ## Picking joint bandwidth of 20.7
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
-
-``` r
-cowplot::plot_grid(plotlist=extract_result_plots(ll4), ncol=length(unique(g2$sim_auc)))
-```
-
-    ## Picking joint bandwidth of 561
-
-    ## Picking joint bandwidth of 561
-
-    ## Picking joint bandwidth of 473
-    ## Picking joint bandwidth of 473
-
-    ## Picking joint bandwidth of 419
-    ## Picking joint bandwidth of 419
-
-    ## Picking joint bandwidth of 305
-    ## Picking joint bandwidth of 305
-
-    ## Picking joint bandwidth of 385
-    ## Picking joint bandwidth of 385
-
-    ## Picking joint bandwidth of 305
-    ## Picking joint bandwidth of 305
-
-    ## Picking joint bandwidth of 260
-    ## Picking joint bandwidth of 260
-
-    ## Picking joint bandwidth of 186
-    ## Picking joint bandwidth of 186
-
-    ## Picking joint bandwidth of 336
-    ## Picking joint bandwidth of 336
-
-    ## Picking joint bandwidth of 320
-    ## Picking joint bandwidth of 320
-
-    ## Picking joint bandwidth of 303
-    ## Picking joint bandwidth of 303
-
-    ## Picking joint bandwidth of 228
-    ## Picking joint bandwidth of 228
-
-    ## Picking joint bandwidth of 293
-    ## Picking joint bandwidth of 293
-
-    ## Picking joint bandwidth of 263
-    ## Picking joint bandwidth of 263
-
-    ## Picking joint bandwidth of 234
-    ## Picking joint bandwidth of 234
-
-    ## Picking joint bandwidth of 205
-    ## Picking joint bandwidth of 205
-
-    ## Picking joint bandwidth of 360
-    ## Picking joint bandwidth of 360
-
-    ## Picking joint bandwidth of 327
-    ## Picking joint bandwidth of 327
-
-    ## Picking joint bandwidth of 284
-    ## Picking joint bandwidth of 284
-
-    ## Picking joint bandwidth of 250
-    ## Picking joint bandwidth of 250
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
-
-``` r
-cowplot::plot_grid(plotlist=extract_threshold_plots(ll3), ncol=length(unique(g2$sim_auc)))
-```
-
-    ## Picking joint bandwidth of 0.0516
-
-    ## Picking joint bandwidth of 0.0516
-
-    ## Picking joint bandwidth of 0.0495
-    ## Picking joint bandwidth of 0.0495
-
-    ## Picking joint bandwidth of 0.0529
-    ## Picking joint bandwidth of 0.0529
-
-    ## Picking joint bandwidth of 0.103
-    ## Picking joint bandwidth of 0.103
-
-    ## Picking joint bandwidth of 0.0467
-    ## Picking joint bandwidth of 0.0467
-
-    ## Picking joint bandwidth of 0.0244
-    ## Picking joint bandwidth of 0.0244
-
-    ## Picking joint bandwidth of 0.011
-    ## Picking joint bandwidth of 0.011
-
-    ## Picking joint bandwidth of 0.0231
-    ## Picking joint bandwidth of 0.0231
-
-    ## Picking joint bandwidth of 0.0421
-    ## Picking joint bandwidth of 0.0421
-
-    ## Picking joint bandwidth of 0.00581
-    ## Picking joint bandwidth of 0.00581
-
-    ## Picking joint bandwidth of 0.00677
-    ## Picking joint bandwidth of 0.00677
-
-    ## Picking joint bandwidth of 0.00981
-    ## Picking joint bandwidth of 0.00981
-
-    ## Picking joint bandwidth of 0.00662
-    ## Picking joint bandwidth of 0.00662
-
-    ## Picking joint bandwidth of 0.0034
-    ## Picking joint bandwidth of 0.0034
-
-    ## Picking joint bandwidth of 0.00591
-    ## Picking joint bandwidth of 0.00591
-
-    ## Picking joint bandwidth of 0.00613
-    ## Picking joint bandwidth of 0.00613
-
-    ## Picking joint bandwidth of 0.00388
-    ## Picking joint bandwidth of 0.00388
-
-    ## Picking joint bandwidth of 0.00238
-    ## Picking joint bandwidth of 0.00238
-
-    ## Picking joint bandwidth of 0.00272
-    ## Picking joint bandwidth of 0.00272
-
-    ## Picking joint bandwidth of 0.00377
-    ## Picking joint bandwidth of 0.00377
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-6-3.png)<!-- -->
-
-``` r
-cowplot::plot_grid(plotlist=extract_threshold_plots(ll4), ncol=length(unique(g2$sim_auc)))
-```
-
-    ## Picking joint bandwidth of 0.0419
-
-    ## Picking joint bandwidth of 0.0419
-
-    ## Picking joint bandwidth of 0.0422
-    ## Picking joint bandwidth of 0.0422
-
-    ## Picking joint bandwidth of 0.0417
-    ## Picking joint bandwidth of 0.0417
-
-    ## Picking joint bandwidth of 0.0872
-    ## Picking joint bandwidth of 0.0872
-
-    ## Picking joint bandwidth of 0.0358
-    ## Picking joint bandwidth of 0.0358
-
-    ## Picking joint bandwidth of 0.0301
-    ## Picking joint bandwidth of 0.0301
-
-    ## Picking joint bandwidth of 0.0367
-    ## Picking joint bandwidth of 0.0367
-
-    ## Picking joint bandwidth of 0.0358
-    ## Picking joint bandwidth of 0.0358
-
-    ## Picking joint bandwidth of 0.0368
-    ## Picking joint bandwidth of 0.0368
-
-    ## Picking joint bandwidth of 0.037
-    ## Picking joint bandwidth of 0.037
-
-    ## Picking joint bandwidth of 0.0199
-    ## Picking joint bandwidth of 0.0199
-
-    ## Picking joint bandwidth of 0.0162
-    ## Picking joint bandwidth of 0.0162
-
-    ## Picking joint bandwidth of 0.0395
-    ## Picking joint bandwidth of 0.0395
-
-    ## Picking joint bandwidth of 0.0321
-    ## Picking joint bandwidth of 0.0321
-
-    ## Picking joint bandwidth of 0.0123
-    ## Picking joint bandwidth of 0.0123
-
-    ## Picking joint bandwidth of 0.0134
-    ## Picking joint bandwidth of 0.0134
-
-    ## Picking joint bandwidth of 0.0388
-    ## Picking joint bandwidth of 0.0388
-
-    ## Picking joint bandwidth of 0.0283
-    ## Picking joint bandwidth of 0.0283
-
-    ## Picking joint bandwidth of 0.00865
-    ## Picking joint bandwidth of 0.00865
-
-    ## Picking joint bandwidth of 0.00735
-    ## Picking joint bandwidth of 0.00735
-
-![](experiment_1_files/figure-gfm/unnamed-chunk-6-4.png)<!-- -->
