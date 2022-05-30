@@ -169,6 +169,8 @@ density_plot <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
     data %>%
     pivot_longer(!n_sim)
 
+  bw <- NULL
+
   p_data$name <- factor(p_data$name, levels=factor_levels)
 
   cred.int <- data %>%
@@ -185,7 +187,8 @@ density_plot <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
       calc_ecdf = TRUE,
       quantiles = c(0.5),
       scale=0.9,
-      quantile_lines = TRUE
+      quantile_lines = TRUE,
+      bandwidth = bw
     )
 
   d <- transform(ggplot_build(p)$data[[1]], name=group) %>%
@@ -205,7 +208,8 @@ density_plot <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
       quantiles = c(0.5),
       scale=0.9,
       quantile_lines = TRUE,
-      fill="transparent"
+      fill="transparent",
+      bandwidth = bw
     ) +
     coord_flip()+
     theme_bw() +
@@ -215,6 +219,51 @@ density_plot <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
     ) +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
           legend.position = "position.none")
+
+  if(limit_y){
+    p <- p +
+      scale_x_continuous(limits=c(0,1))
+  } else {
+    p <- p +
+      scale_x_continuous(labels=scales::dollar_format())
+  }
+  p
+}
+
+plot_binned_ridges <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
+                               factor_levels=NULL) {
+
+  if(is.null(factor_levels)){
+    factor_levels <- data %>% select(-n_sim) %>% names()
+  }
+  p_data <-
+    data %>%
+    pivot_longer(!n_sim)
+
+  p_data$name <- factor(p_data$name, levels=factor_levels)
+
+  cred.int <- data %>%
+    pivot_longer(!n_sim) %>%
+    group_by(name) %>%
+    summarise(CI=list(hdi(value, ci=ci)),
+              m=median(value, na.rm=TRUE)) %>%
+    unnest_wider(CI)
+
+  p <-
+    p_data %>%
+    left_join(cred.int) %>%
+    mutate(in_interval=value > CI_low & value < CI_high) %>%
+    ggplot(aes(x = value, y = name, height = stat(count), fill=in_interval)) +
+    geom_density_ridges(stat = "binline", scale = 0.95, draw_baseline=FALSE) +
+    coord_flip() +
+    theme_bw() +
+    labs(
+      y="", x="",
+      subtitle=subtitle
+    ) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+          legend.position = "position.none") +
+    scale_fill_manual(values=c("#ADD8E6","grey50"), breaks=c(TRUE, FALSE))
 
   if(limit_y){
     p <- p +

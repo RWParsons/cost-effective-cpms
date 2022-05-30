@@ -276,6 +276,8 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       #   factor_levels=names(select(df_result, -n_sim))
       # ) 
       p <- density_plot(df_result, subtitle=sub, limit_y=F)
+    } else if(plot_type=="histogram") {
+      p <- plot_binned_ridges(df_result, subtitle=sub, limit_y=F)
     }
     p2 <- density_plot(select(df_thresholds, -treat_none, -treat_all), subtitle=sub, limit_y=T)
     res <- c(res, list(plot_result=p, plot_threshold=p2))
@@ -306,12 +308,14 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 
 x <- do_simulation(
   # sample_size=500, 
-  n_sims=1000, n_valid=1000, sim_auc=0.8, event_rate=0.01,
+  n_sims=100, n_valid=1000, sim_auc=0.8, event_rate=0.01,
   fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
   # fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-  plot_type = "density",
+  plot_type = "histogram",
   scale=1
 )
+
+density_plot(data=x$data, sub="")
 
 x <- do_simulation(
   # sample_size=500, 
@@ -322,6 +326,7 @@ x <- do_simulation(
   scale=1
 )
 ```
+
 
 
 ```{r, include=F}
