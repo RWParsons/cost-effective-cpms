@@ -324,14 +324,14 @@ x <- do_simulation(
 
 falls_simulation <- 
   do_simulation(
-    n_sims=500, n_valid=10000, sim_auc=0.75, event_rate=0.015,
+    n_sims=1000, n_valid=10000, sim_auc=0.75, event_rate=0.015,
     fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
     plot_type = "histogram"
   )
 
 icu_simulation <- 
   do_simulation(
-    n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.01,
+    n_sims=1000, n_valid=1000, sim_auc=0.8, event_rate=0.01,
     fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
     plot_type = "histogram"
   )
@@ -386,10 +386,12 @@ p_icu_cutpoints <-
 cowplot::plot_grid(
   plotlist=list(
     p_icu_nmb, p_falls_nmb,
-    p_falls_cutpoints, p_icu_cutpoints), 
+    p_icu_cutpoints, p_falls_cutpoints), 
   labels=LETTERS[1:4],
   ncol=2
 )
+
+ggsave(filename="output/primary_results.jpeg", dpi=1200, height=10, width=7)
 
 ```
 
@@ -413,7 +415,8 @@ medians <- as.numeric(str_extract(icu_summary$summary, "-?\\d+\\.?\\d*"))
 icu_summary$summary[which.max(medians)] <- paste0("<b>", icu_summary$summary[which.max(medians)], "</b>")
 
 
-rbind(icu_summary, falls_summary) %>%
+primary_analyses_table <- 
+  rbind(icu_summary, falls_summary) %>%
   select("Cutpoint method"=method, "Net Monetary Benefit (AUD)"=summary) %>%
   formattable() %>%
     kable(
@@ -423,6 +426,7 @@ rbind(icu_summary, falls_summary) %>%
   pack_rows(index=c("ICU readmission"=7, "Inpatient falls"=7)) %>%
   kable_styling()
 
+primary_analyses_table %>% save_kable(file="output/primary_analyses.html")
 ```
 
 ## search through a grid of combinations of AUC and event rates to see how this influences the differences between probability threshold methods. The same costs were used in all simulations (distributions at top of document) and are resampled separately for training and validation.
