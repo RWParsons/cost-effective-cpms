@@ -268,12 +268,8 @@ plot_binned_ridges <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
           legend.position = "position.none") +
     scale_fill_manual(values=c("#ADD8E6","grey50"), breaks=c(TRUE, FALSE))
 
-  if(limit_y){
-    p <- p +
-      scale_x_continuous(limits=c(0,1))
-  } else {
-    p <- p +
-      scale_x_continuous(labels=scales::dollar_format())
+  if(!limit_y){
+    p <- p + scale_x_continuous(labels=scales::dollar_format())
   }
   p
 }

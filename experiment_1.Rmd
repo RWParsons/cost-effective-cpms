@@ -308,109 +308,122 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 
 x <- do_simulation(
   # sample_size=500, 
-  n_sims=100, n_valid=1000, sim_auc=0.8, event_rate=0.01,
+  n_sims=1000, n_valid=1000, sim_auc=0.8, event_rate=0.01,
   fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
   # fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
   plot_type = "histogram",
   scale=1
 )
 
-density_plot(data=x$data, sub="")
 
-x <- do_simulation(
-  # sample_size=500, 
-  n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.01,
-  # fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
-  fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-  plot_type = "density",
-  scale=1
+```
+
+# Primary analyses
+
+```{r, fig.height=10, fid.width=7}
+
+falls_simulation <- 
+  do_simulation(
+    n_sims=500, n_valid=10000, sim_auc=0.75, event_rate=0.015,
+    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+    plot_type = "histogram"
+  )
+
+icu_simulation <- 
+  do_simulation(
+    n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.01,
+    fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
+    plot_type = "histogram"
+  )
+
+```
+## Plots with most realistic AUC and event rate for each use-case
+```{r}
+
+cols_rename <- c(
+  "Cost effective"="cost_effective",
+  "Treat all" = "treat_all",
+  "Treat none" = "treat_none",
+  "Point closest-to-(0, 1) corner"="er",
+  "Youden index" = "youden",
+  "Sensitivity*Specificity"="cz",
+  "Index of union"="iu"
 )
+
+p_falls_nmb <- 
+  rename(falls_simulation$data, all_of(cols_rename)) %>%
+  plot_binned_ridges() +
+    labs(
+      x="Net Monetary Benefit (AUD)\n"
+    )
+
+p_falls_cutpoints <- 
+  falls_simulation$thresholds %>%
+  select(-treat_all, -treat_none) %>%
+  rename(., any_of(cols_rename)) %>%
+  plot_binned_ridges(., limit_y = T) +
+  labs(
+    x="Selected cutpoint\n"
+  )
+
+p_icu_nmb <- 
+  rename(icu_simulation$data, all_of(cols_rename)) %>%
+  plot_binned_ridges() +
+    labs(
+      x="Net Monetary Benefit (AUD)\n"
+    )
+
+p_icu_cutpoints <- 
+  icu_simulation$thresholds %>%
+  select(-treat_all, -treat_none) %>%
+  rename(., any_of(cols_rename)) %>%
+  plot_binned_ridges(., limit_y = T) +
+  labs(
+    x="Selected cutpoint\n"
+  )
+
+
+cowplot::plot_grid(
+  plotlist=list(
+    p_icu_nmb, p_falls_nmb,
+    p_falls_cutpoints, p_icu_cutpoints), 
+  labels=LETTERS[1:4],
+  ncol=2
+)
+
 ```
 
+## Table with most realistic AUC and event rate for each use-case
+```{r}
+values_replace <- names(cols_rename)
+names(values_replace) <- cols_rename
 
 
-```{r, include=F}
-# test run new method for getting cost-effective threshold when considering distributions rather than only a single sample from get_nmb() 
-# fx_get_cost_effective_threshold <- function(fx_nmb, predicted, actual, nboot=100) {
-#   sampler <- function(predicted, actual) {
-#     idx <- sample(1:length(predicted), replace=TRUE)
-#     p <- predicted[idx]
-#     a <- actual[idx]
-#     if(length(unique(a))==1) {
-#       res <- sampler(predicted=predicted, actual=actual)
-#     } else {
-#       res <- list(p=p, a=a)
-#     }
-#     res
-#   }
-#   f <- function() {
-#     costs <- fx_nmb()
-#     sampled <- sampler(predicted=predicted, actual=actual)
-#     pt_cost_effective <- cutpointr(
-#       x=sampled$p, class=sampled$a, method=maximize_metric, metric=fx_total_nmb,
-#       utility_tp=costs["TP"], utility_tn=costs["TN"],
-#       cost_fp=costs["FP"], cost_fn=costs["FN"],
-#       silent=TRUE
-#     )[['optimal_cutpoint']]
-#     if (pt_cost_effective > 1) {
-#       pt_cost_effective <- 1
-#     }
-#     pt_cost_effective
-#   }
-#   
-#   cutpoints <- replicate(nboot, f(), simplify=T)
-#   # median(cutpoints)
-#   cutpoints
-# }
-# 
-# 
-# do_test <- function(...) {
-#   x <- do_simulation(
-#     sample_size=1000, n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.1,
-#     fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "density",
-#     scale=60, seed=NULL
-#   )
-#   costs <- get_nmb()
-#   current <- cutpointr(
-#     x=x$predicted, class=x$actual, method=maximize_metric, metric=fx_total_nmb,
-#     utility_tp=costs["TP"], utility_tn=costs["TN"],
-#     cost_fp=costs["FP"], cost_fn=costs["FN"],
-#     silent=TRUE
-#   )[['optimal_cutpoint']]
-#   if (current > 1) {
-#     current <- 1
-#   }
-#   
-#   new <- fx_get_cost_effective_threshold(fx_nmb=get_nmb, predicted=x$predicted, actual=x$actual, nboot=100)
-#   new <- median(new)
-#   
-#   return(list(new=new,current=current))
-#   
-# }
-# 
-# out <- map_dfr(1:100, do_test)
-# x <- do_simulation(
-#   sample_size=1000, n_sims=200, n_valid=1000, sim_auc=0.8, event_rate=0.025,
-#   fx_costs=get_nmb, resample_values=TRUE, get_what=c("data", "plot"), plot_type = "density",
-#   scale=60
-# )
-# 
-# 
-# 
-# get_nmb_est()
-# cps <- fx_get_cost_effective_threshold(fx_nmb=get_nmb, predicted=x$predicted, actual=x$actual)
-# 
-# plot(density(out$new))
-# plot(density(out$current))
-# 
-# out %>%
-#   mutate(id=row_number()) %>%
-#   pivot_longer(!id) %>%
-#   ggplot(aes(value, col=name)) +
-#   geom_density()
+falls_summary <- 
+  falls_simulation$summary %>%
+  mutate(method = str_replace_all(method, values_replace))
+medians <- as.numeric(str_extract(falls_summary$summary, "-?\\d+\\.?\\d*"))
+falls_summary$summary[which.max(medians)] <- paste0("<b>", falls_summary$summary[which.max(medians)], "</b>")
+
+
+icu_summary <- 
+  icu_simulation$summary %>%
+  mutate(method = str_replace_all(method, values_replace))
+medians <- as.numeric(str_extract(icu_summary$summary, "-?\\d+\\.?\\d*"))
+icu_summary$summary[which.max(medians)] <- paste0("<b>", icu_summary$summary[which.max(medians)], "</b>")
+
+
+rbind(icu_summary, falls_summary) %>%
+  select("Cutpoint method"=method, "Net Monetary Benefit (AUD)"=summary) %>%
+  formattable() %>%
+    kable(
+      escape=F,
+      caption=glue::glue("Data presented as median [{percent(0.9, digits=0)} Highest Density Interval]")
+    ) %>%
+  pack_rows(index=c("ICU readmission"=7, "Inpatient falls"=7)) %>%
+  kable_styling()
+
 ```
-
-
 
 ## search through a grid of combinations of AUC and event rates to see how this influences the differences between probability threshold methods. The same costs were used in all simulations (distributions at top of document) and are resampled separately for training and validation.
 #### In the plot below, the columns, from left to right, have increasing AUC. The rows, from top to bottom, have increasing event rates.
