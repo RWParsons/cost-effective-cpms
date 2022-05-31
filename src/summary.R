@@ -233,14 +233,9 @@ density_plot <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
 plot_binned_ridges <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
                                factor_levels=NULL) {
 
-  if(is.null(factor_levels)){
-    factor_levels <- data %>% select(-n_sim) %>% names()
-  }
   p_data <-
     data %>%
     pivot_longer(!n_sim)
-
-  p_data$name <- factor(p_data$name, levels=factor_levels)
 
   cred.int <- data %>%
     pivot_longer(!n_sim) %>%
@@ -249,10 +244,18 @@ plot_binned_ridges <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
               m=median(value, na.rm=TRUE)) %>%
     unnest_wider(CI)
 
+  p_data <-
+    left_join(p_data, cred.int, by="name") %>%
+    mutate(in_interval=value > CI_low & value < CI_high)
+
+  if(is.null(factor_levels)){
+    factor_levels <- data %>% select(-n_sim) %>% names()
+  }
+
+  p_data$name <- factor(p_data$name, levels=factor_levels)
+
   p <-
     p_data %>%
-    left_join(cred.int) %>%
-    mutate(in_interval=value > CI_low & value < CI_high) %>%
     ggplot(aes(x = value, y = name, height = stat(count), fill=in_interval)) +
     geom_density_ridges(stat = "binline", scale = 0.95, draw_baseline=FALSE) +
     coord_flip() +
