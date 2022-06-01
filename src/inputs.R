@@ -1,6 +1,6 @@
 set.seed(42)
 
-n_samples <- 1000000
+n_samples <- 100000
 
 params <- list()
 

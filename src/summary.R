@@ -230,23 +230,37 @@ density_plot <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
   p
 }
 
-plot_binned_ridges <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
+plot_binned_ridges <- function(data, ci=0.95, hdi=T, limit_y=FALSE, subtitle="",
                                factor_levels=NULL) {
 
   p_data <-
     data %>%
     pivot_longer(!n_sim)
 
-  cred.int <- data %>%
-    pivot_longer(!n_sim) %>%
-    group_by(name) %>%
-    summarise(CI=list(hdi(value, ci=ci)),
-              m=median(value, na.rm=TRUE)) %>%
-    unnest_wider(CI)
+  if(hdi) {
+    cred.int <- data %>%
+      pivot_longer(!n_sim) %>%
+      group_by(name) %>%
+      summarise(CI=list(hdi(value, ci=ci)),
+                m=median(value, na.rm=TRUE)) %>%
+      unnest_wider(CI)
 
-  p_data <-
-    left_join(p_data, cred.int, by="name") %>%
-    mutate(in_interval=value > CI_low & value < CI_high)
+    p_data <-
+      left_join(p_data, cred.int, by="name") %>%
+      mutate(in_interval=value > CI_low & value < CI_high)
+  } else {
+    probs <- c((1 - ci)/2, 1 - (1 - ci)/2)
+
+    p_data <-
+      p_data %>%
+      group_by(name) %>%
+      arrange(value) %>%
+      mutate(percentile=row_number()/n()) %>%
+      ungroup() %>%
+      mutate(in_interval = percentile > probs[1] & percentile < probs[2])
+    # return(p_data)
+  }
+
 
   if(is.null(factor_levels)){
     factor_levels <- data %>% select(-n_sim) %>% names()

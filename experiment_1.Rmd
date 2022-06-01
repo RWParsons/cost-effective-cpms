@@ -306,14 +306,14 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   res
 }
 
-x <- do_simulation(
-  # sample_size=500, 
-  n_sims=1000, n_valid=1000, sim_auc=0.8, event_rate=0.01,
-  fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
-  # fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-  plot_type = "histogram",
-  scale=1
-)
+# x <- do_simulation(
+#   # sample_size=500, 
+#   n_sims=1000, n_valid=1000, sim_auc=0.8, event_rate=0.01,
+#   fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
+#   # fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+#   plot_type = "histogram",
+#   scale=1
+# )
 
 
 ```
@@ -324,7 +324,7 @@ x <- do_simulation(
 
 falls_simulation <- 
   do_simulation(
-    n_sims=1000, n_valid=10000, sim_auc=0.75, event_rate=0.015,
+    n_sims=1000, n_valid=10000, sim_auc=0.7, event_rate=0.036,
     fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
     plot_type = "histogram"
   )
@@ -377,11 +377,10 @@ p_icu_cutpoints <-
   icu_simulation$thresholds %>%
   select(-treat_all, -treat_none) %>%
   rename(., any_of(cols_rename)) %>%
-  plot_binned_ridges(., limit_y = T) +
+  plot_binned_ridges(., limit_y = T, hdi=F) +
   labs(
     x="Selected cutpoint\n"
   )
-
 
 cowplot::plot_grid(
   plotlist=list(
@@ -392,6 +391,91 @@ cowplot::plot_grid(
 )
 
 ggsave(filename="output/primary_results.jpeg", dpi=1200, height=10, width=7)
+
+```
+
+```{r}
+# test visualisations to work on percentiles rather than HDI
+icu_simulation$thresholds %>%
+  select(-treat_all, -treat_none) %>%
+  rename(., any_of(cols_rename)) %>%
+  plot_binned_ridges(., limit_y = T, hdi=F, ci=0.5) %>%
+  group_by(name) %>%
+  arrange(value) %>%
+  # mutate(row=row_number())
+  mutate(percentile=row_number()/n()) %>%
+  ungroup() %>%
+  mutate(in_interval = value > probs[1] & value < probs[2])
+
+
+p_data <- icu_simulation$thresholds %>%
+  select(-treat_all, -treat_none) %>%
+  rename(., any_of(cols_rename)) %>%
+  plot_binned_ridges(., limit_y = T, hdi=F, ci=0.5)
+
+
+p_data %>%
+  ggplot(aes(x = value, y = name, height = stat(count), fill=in_interval
+             )) +
+  geom_density_ridges(stat = "binline", position="stack", scale = 0.95, draw_baseline=FALSE, alpha=0.5) +
+  coord_flip()
+
+size <- 1000
+data.frame(
+  name=sample(LETTERS[1:5], size=size, replace=T),
+  value=c(sample(1:20, size=size*0.8, replace=T), rep(15, size*0.2))
+) %>%
+  group_by(name) %>%
+  arrange(value) %>%
+  mutate(percentile=row_number()/n()) %>%
+  ungroup() %>%
+  mutate(in_interval=percentile > 0.25 & percentile < 0.75)%>%
+  ggplot(aes(x = value, y = name, height = stat(count), fill=in_interval)) +
+  stat_binline(position = "identity", alpha=0.3, bins=20, scale=0.9) +
+  coord_flip()
+
+
+size <- 1000
+data <- data.frame(
+  name=sample(LETTERS[1:5], size=size, replace=T),
+  value=c(sample(1:20, size=size*0.8, replace=T), rep(15, size*0.2))
+)
+
+data %>%
+  filter(name=="A") %>%
+  ggplot(aes(x=value,y=1,height = stat(count))) +
+  geom_ridgeline()
+
+
+data.frame(
+  name=sample(LETTERS[1:5], size=size, replace=T),
+  value=c(sample(1:20, size=size*0.8, replace=T), rep(15, size*0.2))
+) %>%
+  group_by(name) %>%
+  arrange(value) %>%
+  mutate(percentile=row_number()/n()) %>%
+  ungroup() %>%
+  mutate(in_interval=percentile > 0.25 & percentile < 0.75)%>%
+  ggplot(aes(x = value, y = name, height = stat(count), fill=in_interval)) +
+  geom_density_ridges2(aes(col=in_interval),stat="binline", alpha=0.3, bins=20, scale=0.9) +
+  coord_flip()
+
+
+p_data %>%
+  # filter(name=="Cost effective") %>%
+  ggplot(aes(x = value, y = name, height = stat(count), fill=in_interval)) +
+  stat_binline(position = "identity", alpha=0.3)
+
+
+icu_simulation$thresholds %>%
+  select(-treat_all, -treat_none) %>%
+  rename(., any_of(cols_rename)) %>%
+  plot_binned_ridges(., limit_y = T, hdi=F, ci=0.5) %>%
+  filter(name=="Cost effective") %>%
+  filter(value==1) %>% group_by(percentile>0.75) %>% summarize(n=n())
+
+
+
 
 ```
 
