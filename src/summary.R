@@ -316,7 +316,7 @@ plot_fw_histogram <- function(data, ci=0.95, hdi=T, limit_y=FALSE, subtitle="",
     ggplot(aes(value, fill=in_interval)) +
     geom_histogram(bins=n_bins) +
     coord_flip() +
-    facet_grid(~name) +
+    facet_wrap(~name, labeller=label_wrap_gen(width=10), nrow=1) +
     theme_bw() +
     scale_fill_manual(values=c("grey50","grey50", "#ADD8E6")) +
     guides(fill="none") +
