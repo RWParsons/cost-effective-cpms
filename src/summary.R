@@ -295,6 +295,64 @@ plot_binned_ridges <- function(data, ci=0.95, hdi=T, limit_y=FALSE, subtitle="",
   p
 }
 
+
+plot_fw_histogram <- function(data, ci=0.95, hdi=T, limit_y=FALSE, subtitle="",
+                              factor_levels=NULL, agg_fx=median, n_bins=40,
+                              n_breaks=3, plot_labels=labs(x="", y=""),
+                              agg_line_alpha=0.6, agg_line_size=2) {
+  p_data <-
+    get_plot_data(data) %>%
+    add_interval(ci=ci, hdi=hdi)
+
+  if(is.null(factor_levels)){
+    factor_levels <- data %>% select(-n_sim) %>% names()
+  }
+
+  p_data$name <- factor(p_data$name, levels=factor_levels)
+
+  df_agg <-
+    p_data %>%
+    group_by(name) %>%
+    summarize(m=agg_fx(value))
+
+  p <-
+    p_data %>%
+    ggplot(aes(value, fill=in_interval)) +
+    geom_histogram(bins=n_bins) +
+    coord_flip() +
+    facet_grid(~name) +
+    theme_bw() +
+    scale_fill_manual(values=c("grey50","grey50", "#ADD8E6")) +
+    guides(fill="none") +
+    scale_y_continuous(n.breaks=n_breaks) +
+    plot_labels
+
+  if(!limit_y){
+    p <- p + scale_x_continuous(labels=scales::dollar_format())
+  }
+
+  my_plot_innards <- ggplot_build(p)
+
+  extracted_points <- tibble(
+    outcome = my_plot_innards[["data"]][[1]][["x"]],
+    count = my_plot_innards[["data"]][[1]][["y"]],
+    in_interval = (my_plot_innards[["data"]][[1]][["group"]]) %>% as.factor(),
+    method = (my_plot_innards[["data"]][[1]][["PANEL"]] %>% as.character)
+  )
+
+  heights <-
+    df_agg %>%
+    rownames_to_column(var="method_n") %>%
+    left_join(extracted_points, by=c("method_n"="method")) %>%
+    mutate(diff=abs(m-outcome)) %>%
+    group_by(name) %>%
+    arrange(diff) %>%
+    slice(1)
+
+  p + geom_segment(data=heights, aes(x=m, xend=m, y=0, yend=count), size=agg_line_size, alpha=agg_line_alpha)
+}
+
+
 # extract content from lists (made from parallel processing of simulations)
 extract_result_plots <- function(l) {
   res <- list()
