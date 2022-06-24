@@ -182,7 +182,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
                           return_summary=T, return_data=T, return_plot=T,
                           plot_type="boxplot", 
                           scale=60, use_hdi=TRUE, hdi_prob=0.9,
-                          seed=42){
+                          seed=42, ...){
   
   if(!is.null(seed)) set.seed(seed)
   if(missing(sample_size)) {
@@ -450,10 +450,8 @@ primary_analyses_table %>% save_kable(file="output/primary_analyses.html")
 #### I think that this is because, for models with very high discrimination, they're able to correctly classify a larger proportion of samples, and there are fewer which are classified differently based on selection method. The difference is greater for smaller event rates because a false negative is the most costly classification, and only the cost-based method is "aware" of this. This is also why, when the event rate is very high, there is not much of a difference between methods (cost-based method is focused on correctly classifying the majority class but so are the other methods).
 ```{r, fig.height=24, fig.width=12}
 simulation_config <- list(
-  # training_sample_size = 500,
-  n_simulations = 200,
-  validation_sample_size = 10000,
-  hdi_prob=0.9
+  n_sims = 100,
+  n_valid = 1000
 )
 library(parallel)
 n_cluster <- detectCores()
@@ -484,42 +482,47 @@ invisible(clusterEvalQ(cl, {
 ll1 <- parallel::parLapply(
   cl,
   1:nrow(g),
-  function(i) do_simulation(
-    # sample_size=simulation_config$training_sample_size,
-    n_sims=simulation_config$n_simulations,
-    n_valid=simulation_config$validation_sample_size,
-    sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    return_data=F, return_plot=T, return_summary=T,
-    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-    hdi_prob=simulation_config$hdi_prob,
-    plot_type="density"
+  function(i) do.call(
+    do_simulation, 
+    c(
+      simulation_config, 
+      list(
+        sim_auc=g$sim_auc[i],
+        event_rate=g$event_rate[i],
+        fx_costs_training=get_nmb_est, 
+        fx_costs_evaluation=get_nmb
+      )
+    )
   )
 )
+
 
 ll2 <- parallel::parLapply(
   cl,
   1:nrow(g),
-  function(i) do_simulation(
-    # sample_size=simulation_config$training_sample_size,
-    n_sims=simulation_config$n_simulations,
-    n_valid=simulation_config$validation_sample_size,
-    sim_auc=g$sim_auc[i], event_rate=g$event_rate[i],
-    return_data=F, return_plot=T, return_summary=T,
-    fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
-    hdi_prob=simulation_config$hdi_prob,
-    plot_type="density"
+  function(i) do.call(
+    do_simulation, 
+    c(
+      simulation_config, 
+      list(
+        sim_auc=g$sim_auc[i],
+        event_rate=g$event_rate[i],
+        fx_costs_training=get_nmb_est_ICU, 
+        fx_costs_evaluation=get_nmb_ICU
+      )
+    )
   )
 )
 
 
-cowplot::plot_grid(plotlist=extract_result_plots(ll1), ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=get_plot_list(ll1, cols_rename, get_what="nmb"), ncol=length(unique(g$sim_auc)))
 ggsave(filename="output/falls_simulations_nmb.jpeg", height=24, width=12)
-cowplot::plot_grid(plotlist=extract_result_plots(ll2), ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=get_plot_list(ll2, cols_rename, get_what="nmb"), ncol=length(unique(g$sim_auc)))
 ggsave(filename="output/icu_simulations_nmb.jpeg", height=24, width=12)
 
-cowplot::plot_grid(plotlist=extract_threshold_plots(ll1), ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=get_plot_list(ll1, cols_rename, get_what="thresholds"), ncol=length(unique(g$sim_auc)))
 ggsave(filename="output/falls_simulations_thresholds.jpeg", height=24, width=12)
-cowplot::plot_grid(plotlist=extract_threshold_plots(ll2), ncol=length(unique(g$sim_auc)))
+cowplot::plot_grid(plotlist=get_plot_list(ll2, cols_rename, get_what="thresholds"), ncol=length(unique(g$sim_auc)))
 ggsave(filename="output/icu_simulations_thresholds.jpeg", height=24, width=12)
 
 

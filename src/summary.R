@@ -370,6 +370,31 @@ plot_fw_histogram <- function(data, ci=0.95, hdi=T, limit_y=FALSE, subtitle="",
 
 
 # extract content from lists (made from parallel processing of simulations)
+get_plot_list <- function(out_list,
+                          rename_vector,
+                          get_what = c("nmb", "inb", "cutpoints"),
+                          reference_group=NULL,
+                          ...){
+
+  get_what <- get_what[1]
+  plotlist <- list()
+
+  for(i in 1:length(out_list)){
+    if(get_what %in% c("nmb", "inb")){
+      results <- out_list[[i]]$df_result
+    } else {
+      results <- out_list[[i]]$df_thresholds
+    }
+    if(!missing(rename_vector)){
+      results <- rename(results, any_of(rename_vector))
+    }
+    p <- plot_fw_histogram(data=results, ...)
+    plotlist <- c(plotlist, list(p))
+  }
+  plotlist
+}
+
+
 extract_result_plots <- function(l) {
   res <- list()
   for(i in 1:length(l)) {
