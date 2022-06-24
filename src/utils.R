@@ -96,10 +96,11 @@ get_smooth_max <- function(x, y){
 }
 
 
-get_thresholds <- function(predicted, actual, pt_seq=seq(0.01, 0.99,0.01), costs){
-  rocobj <- pROC::roc(as.factor(actual), predicted, direction="<", quiet=TRUE)
-  auc <- pROC::auc(rocobj)
-  pt_er <- pROC::coords(rocobj, "best", best.method="closest.topleft")$threshold
+get_thresholds <- function(predicted, actual, costs){
+  pt_er <- cutpointr(
+    x=predicted, class=actual, method=minimize_metric, metric=roc01,
+    silent=TRUE
+  )[['optimal_cutpoint']]
   if(length(pt_er) > 1) {
     pt_er <- median(pt_er)
   }
