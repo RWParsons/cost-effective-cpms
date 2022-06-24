@@ -395,39 +395,70 @@ get_plot_list <- function(out_list,
 }
 
 
-extract_result_plots <- function(l) {
-  res <- list()
-  for(i in 1:length(l)) {
-    res <- c(res, list(l[[i]]$plot_result))
-  }
-  res
-}
+extract_summaries<- function(out_list,
+                             rename_vector,
+                             get_what = c("nmb", "inb", "cutpoints"),
+                             reference_group=NULL,
+                             agg_fx=median,
+                             hdi=F,
+                             ci=0.95,
+                             ...) {
 
-extract_threshold_plots <- function(l) {
-  res <- list()
-  for(i in 1:length(l)) {
-    res <- c(res, list(l[[i]]$plot_threshold))
-  }
-  res
-}
+  get_what <- get_what[1]
+  summarylist <- list()
 
-extract_summaries <- function(l, format_max_nmb=T) {
-  res <- list()
-  for(i in 1:length(l)) {
-    df_summary <- l[[i]]$summary
-    if(format_max_nmb){
-      medians <- as.numeric(str_extract(df_summary$summary, "-?\\d+\\.?\\d*"))
-      df_summary$summary[which.max(medians)] <- paste0("<b>", df_summary$summary[which.max(medians)], "</br>")
+  for(i in 1:length(out_list)){
+    if(get_what %in% c("nmb", "inb")){
+      results <- out_list[[i]]$df_result
+    } else {
+      results <- out_list[[i]]$df_thresholds
+      results <- select(results, -treat_all, -treat_none)
     }
-    res <- c(res, list(df_summary))
+    if(!missing(rename_vector)){
+      results <- rename(results, any_of(rename_vector))
+    }
+    summary_i <- do.call(
+      get_summary,
+      c(
+        out_list[[i]]$meta_data,
+        list(
+          data=results,
+          agg_fx=agg_fx,
+          hdi=hdi,
+          ci=ci,
+          recode_methods_vector=rename_vector
+        )
+      )
+    )
+    summarylist <- c(summarylist, list(summary_i))
   }
-  res
+  summarylist
 }
 
-extract_thresholds_summary <- function(l) {
-  res <- list()
-  for(i in 1:length(l)) {
-    res <- c(res, list(l[[i]]$thresholds_summary))
+
+make_table <- function(l, get_what = c("nmb", "inb", "cutpoints"),
+                       rename_vector=cols_rename,
+                       agg_fx=median, hdi=F, ci=0.95,
+                       hdi_prob=simulation_config$hdi_prob, save_path=NULL) {
+
+  tbl <- rbindlist(extract_summaries(
+    l, rename_vector=rename_vector, get_what=get_what, agg_fx=agg_fx, hdi=hdi, ci=ci
+  ))
+
+  tbl <-
+    tbl %>%
+    group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
+    mutate(.group_id=cur_group_id()) %>%
+    ungroup() %>%
+    select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
+    select(Rate=event_rate, `Model AUC`=sim_auc, everything()) %>%
+    pivot_wider(names_from="method", values_from="summary") %>%
+    formattable() %>%
+    kable(escape=F,
+          caption=glue::glue("Data presented as median [{percent(hdi_prob, digits=0)} Highest Density Interval]")) %>%
+    kable_styling()
+  if(!is.null(save_path)) {
+    save_kable(tbl, save_path)
   }
-  res
+  tbl
 }

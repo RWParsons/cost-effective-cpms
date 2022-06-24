@@ -527,35 +527,11 @@ ggsave(filename="output/icu_simulations_thresholds.jpeg", height=24, width=12)
 
 
 
-make_table <- function(l, results=T, hdi_prob=simulation_config$hdi_prob, save_path=NULL) {
-  if(results){
-    tbl <- rbindlist(extract_summaries(l)) 
-  } else {
-    tbl <- rbindlist(extract_thresholds_summary(l)) 
-  }
-  
-  tbl <- 
-    tbl %>%
-    group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
-    mutate(.group_id=cur_group_id()) %>%
-    ungroup() %>%
-    select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
-    select(event_rate, sim_auc, everything()) %>%
-    pivot_wider(names_from="method", values_from="summary") %>% 
-    formattable() %>%
-    kable(escape=F,
-          caption=glue::glue("Data presented as median [{percent(hdi_prob, digits=0)} Highest Density Interval]")) %>%
-    kable_styling()
-  if(!is.null(save_path)) {
-    save_kable(tbl, save_path)
-  }
-}
+make_table(ll1, get_what="nmb", rename_vector=cols_rename, save_path="output/falls_nmb_summary.html")
+make_table(ll1, get_what="thresholds", rename_vector=cols_rename, save_path="output/falls_thresholds_summary.html")
 
-make_table(ll1, results=T, save_path="output/falls_nmb_summary.html")
-make_table(ll1, results=F, save_path="output/falls_thresholds_summary.html")
-
-make_table(ll2, results=T, save_path="output/icu_nmb_summary.html")
-make_table(ll2, results=F, save_path="output/icu_thresholds_summary.html")
+make_table(ll2, get_what="nmb", save_path="output/icu_nmb_summary.html")
+make_table(ll2, get_what="thresholds", save_path="output/icu_thresholds_summary.html")
 
 ```
 
