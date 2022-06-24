@@ -405,23 +405,27 @@ ggsave(filename="output/primary_results.jpeg", dpi=600, height=10, width=15)
 
 ## Table with most realistic AUC and event rate for each use-case
 ```{r}
-values_replace <- names(cols_rename)
-names(values_replace) <- cols_rename
+falls_summary <- do.call(
+  get_summary,
+  c(
+    falls_simulation$meta_data, 
+    list(
+      data=falls_simulation$df_result, agg_fx=median, hdi=F, ci=0.95, 
+      recode_methods_vector=cols_rename
+    )
+  )
+)
 
-
-falls_summary <- 
-  falls_simulation$summary %>%
-  mutate(method = str_replace_all(method, values_replace))
-medians <- as.numeric(str_extract(falls_summary$summary, "-?\\d+\\.?\\d*"))
-falls_summary$summary[which.max(medians)] <- paste0("<b>", falls_summary$summary[which.max(medians)], "</b>")
-
-
-icu_summary <- 
-  icu_simulation$summary %>%
-  mutate(method = str_replace_all(method, values_replace))
-medians <- as.numeric(str_extract(icu_summary$summary, "-?\\d+\\.?\\d*"))
-icu_summary$summary[which.max(medians)] <- paste0("<b>", icu_summary$summary[which.max(medians)], "</b>")
-
+icu_summary <- do.call(
+  get_summary,
+  c(
+    falls_simulation$meta_data, 
+    list(
+      data=icu_simulation$df_result, agg_fx=median, hdi=F, ci=0.95, 
+      recode_methods_vector=cols_rename
+    )
+  )
+)
 
 primary_analyses_table <- 
   rbind(icu_summary, falls_summary) %>%
@@ -429,12 +433,13 @@ primary_analyses_table <-
   formattable() %>%
     kable(
       escape=F,
-      caption=glue::glue("Data presented as median [{percent(0.9, digits=0)} Highest Density Interval]")
+      caption=glue::glue("Data presented as median [{percent(0.95, digits=0)} Intervals]")
     ) %>%
   pack_rows(index=c("ICU readmission"=7, "Inpatient falls"=7)) %>%
   kable_styling()
 
 primary_analyses_table %>% save_kable(file="output/primary_analyses.html")
+
 ```
 
 ## search through a grid of combinations of AUC and event rates to see how this influences the differences between probability threshold methods. The same costs were used in all simulations (distributions at top of document) and are resampled separately for training and validation.

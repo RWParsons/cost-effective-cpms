@@ -13,31 +13,33 @@ get_medians <- function(x, nboot=500){
   list(median=m, median_se=sd(boots))
 }
 
-summarize_sims <- function(x, prob=0.9, use_hdi=TRUE) {
+summarize_sims <- function(x, prob, hdi, agg_fx) {
   r <- function(x) round(x, digits=2)
 
-  if(use_hdi){
+  if(hdi){
     hdi <- hdi(x, ci=prob)
     res <- glue::glue(
-      "{r(median(x))} [{r(hdi$CI_low)}, {r(hdi$CI_high)}]"
+      "{r(agg_fx(x))} [{r(hdi$CI_low)}, {r(hdi$CI_high)}]"
     )
   } else {
-    iqr <- quantile(x, probs=c(0.25,0.75))
+    probs <- c((1 - prob)/2, 1 - (1 - prob)/2)
+    quantiles <- quantile(x, probs=probs)
+
     res <- glue::glue(
-      "{r(median(x))} [IQR:{r(iqr[[1]])}, {r(iqr[[2]])}]"
+      "{r(agg_fx(x))} [{scales::percent(prob)} Interval:{r(quantiles[[1]])}, {r(quantiles[[2]])}]"
     )
   }
   list(summary=res)
 }
 
-get_summary <- function(data, hdi_prob, use_hdi,
-                        sample_size, n_sims, n_valid, sim_auc, event_rate) {
+get_summary <- function(data, sample_size, n_sims, n_valid, sim_auc, event_rate,
+                        agg_fx=median, hdi=F, ci=0.95, make_max_bold=T, recode_methods_vector=NULL, ...) {
   df_summary <- data %>%
     pivot_longer(!n_sim, names_to="method", values_to="nmb")
 
   df_summary <- as.data.table(df_summary)[
     ,
-    summarize_sims(x=nmb, prob=hdi_prob, use_hdi=use_hdi),
+    summarize_sims(x=nmb, prob=ci, hdi=hdi, agg_fx=agg_fx),
     by = list(method)
   ]
 
@@ -46,7 +48,25 @@ get_summary <- function(data, hdi_prob, use_hdi,
   df_summary$n_valid <- n_valid
   df_summary$sim_auc <- sim_auc
   df_summary$event_rate <- event_rate
+
+  if(make_max_bold){
+    values <- as.numeric(str_extract(df_summary$summary, "-?\\d+\\.?\\d*"))
+    df_summary$summary[which.max(values)] <- paste0("<b>", df_summary$summary[which.max(values)], "</b>")
+  }
+
+  if(!is.null(recode_methods_vector)){
+    recode_methods_vector
+    df_summary$method <- recode_methods(df_summary$method, recode_methods_vector)
+  }
   df_summary
+}
+
+recode_methods <- function(method, named_vector){
+  recode(
+    method,
+    !!!setNames(names(named_vector), named_vector),
+    .default=method
+  )
 }
 
 
