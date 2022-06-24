@@ -321,7 +321,8 @@ plot_binned_ridges <- function(data, ci=0.95, hdi=T, limit_y=FALSE, subtitle="",
 plot_fw_histogram <- function(data, ci=0.95, hdi=T, limit_y=FALSE, subtitle="",
                               factor_levels=NULL, agg_fx=median, n_bins=40,
                               n_breaks=3, plot_labels=labs(x="", y=""),
-                              agg_line_alpha=0.6, agg_line_size=2) {
+                              agg_line_alpha=0.6, agg_line_size=2, remove_axis=F,
+                              label_wrap_width=10) {
   p_data <-
     get_plot_data(data, factor_levels=factor_levels) %>%
     add_interval(ci=ci, hdi=hdi)
@@ -336,7 +337,7 @@ plot_fw_histogram <- function(data, ci=0.95, hdi=T, limit_y=FALSE, subtitle="",
     ggplot(aes(value, fill=in_interval)) +
     geom_histogram(bins=n_bins) +
     coord_flip() +
-    facet_wrap(~name, labeller=label_wrap_gen(width=10), nrow=1) +
+    facet_wrap(~name, labeller=label_wrap_gen(width=label_wrap_width), nrow=1) +
     theme_bw() +
     scale_fill_manual(values=c("grey50","grey50", "#ADD8E6")) +
     guides(fill="none") +
@@ -365,7 +366,12 @@ plot_fw_histogram <- function(data, ci=0.95, hdi=T, limit_y=FALSE, subtitle="",
     arrange(diff) %>%
     slice(1)
 
-  p + geom_segment(data=heights, aes(x=m, xend=m, y=0, yend=count), size=agg_line_size, alpha=agg_line_alpha)
+  p <- p + geom_segment(data=heights, aes(x=m, xend=m, y=0, yend=count), size=agg_line_size, alpha=agg_line_alpha)
+
+  if(remove_axis){
+    p <- p + scale_y_continuous(breaks = NULL)
+  }
+  p
 }
 
 
