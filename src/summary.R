@@ -231,8 +231,17 @@ density_plot <- function(data, ci=0.95, limit_y=FALSE, subtitle="",
 }
 
 
-get_plot_data <- function(data) {
-  pivot_longer(data, !n_sim)
+get_plot_data <- function(data, factor_levels) {
+
+  pivoted_data <- pivot_longer(data, !n_sim)
+
+  if(is.null(factor_levels)){
+    factor_levels <- data %>% select(-n_sim) %>% names()
+  }
+
+  pivoted_data$name <- factor(pivoted_data$name, levels=factor_levels)
+
+  pivoted_data
 }
 
 add_interval <- function(data, ci=0.95, hdi=F) {
@@ -265,15 +274,8 @@ plot_binned_ridges <- function(data, ci=0.95, hdi=T, limit_y=FALSE, subtitle="",
                                factor_levels=NULL) {
 
   p_data <-
-    get_plot_data(data) %>%
+    get_plot_data(data, factor_levels=factor_levels) %>%
     add_interval(ci=ci, hdi=hdi)
-
-
-  if(is.null(factor_levels)){
-    factor_levels <- data %>% select(-n_sim) %>% names()
-  }
-
-  p_data$name <- factor(p_data$name, levels=factor_levels)
 
   p <-
     p_data %>%
@@ -301,14 +303,8 @@ plot_fw_histogram <- function(data, ci=0.95, hdi=T, limit_y=FALSE, subtitle="",
                               n_breaks=3, plot_labels=labs(x="", y=""),
                               agg_line_alpha=0.6, agg_line_size=2) {
   p_data <-
-    get_plot_data(data) %>%
+    get_plot_data(data, factor_levels=factor_levels) %>%
     add_interval(ci=ci, hdi=hdi)
-
-  if(is.null(factor_levels)){
-    factor_levels <- data %>% select(-n_sim) %>% names()
-  }
-
-  p_data$name <- factor(p_data$name, levels=factor_levels)
 
   df_agg <-
     p_data %>%
