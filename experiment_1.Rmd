@@ -663,6 +663,37 @@ auc_plot <- cowplot::plot_grid(
 saveRDS(auc_plot, "output/im22-figures/auc_plot.rds")
 ggsave(filename="output/im22-figures/falls-sensitivity-analyses_AUC_nmb.jpeg", height=10.5, width=7)
 
+# p <- plot_fw_histogram(data=ll_auc[[1]]$df_result, agg_line_size=0.5) +
+#   theme_minimal() + 
+#   theme(
+#     strip.text.x = element_blank(),
+#     axis.title.x=element_blank(), 
+#     axis.text.x=element_blank(),
+#     axis.ticks.x=element_blank(),
+#     
+#     axis.title.y=element_blank(), 
+#     axis.text.y=element_blank(),
+#     axis.ticks.y=element_blank(),
+#     
+#     panel.grid.major = element_blank(), 
+#     panel.grid.minor = element_blank(),
+#     panel.background = element_rect(fill = "transparent", linetype=0)
+#   )
+# 
+# sticker(
+#   p,
+#   p_color = "#000000",
+#   h_fill = "#FFC9C9",
+#   h_color = "#ADD8E6",
+#   package="CPMcosts", 
+#   p_size=20, 
+#   s_x=1, 
+#   s_y=.8, 
+#   s_width=1.4, 
+#   s_height=1.2,
+#   filename="hex.png"
+# )
+
 ```
 
 
