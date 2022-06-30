@@ -609,6 +609,18 @@ Format falls sensitivity plots for IM22 talk
 # TODO see if it's possible to remove the facet wrap labels for when I stack vertically
 # TODO see if it's easier to show visually, for IM22 anyway, a sensitivity analyses with only 2 other extremes + current
 
+keep_only_first_plot_strip <- function(plotlist){
+  if(length(plotlist)==1) return(plotlist)
+  for(i in 2:length(plotlist)){
+    plotlist[[i]] <- 
+      plotlist[[i]] + 
+      theme(
+        strip.text.x = element_blank()
+      )
+  }
+  plotlist
+}
+
 cols_rename <- c(
   "Treat All"="treat_all",
   "Treat None"="treat_none",
@@ -630,22 +642,26 @@ g_auc <- expand.grid(
 )
 
 # fall rate
-ll1_event_rate <- readRDS("output/im22-figures/falls-sensitivity-analyses_fall-rate.rds")
-cowplot::plot_grid(
-  plotlist=get_plot_list(ll1_event_rate, cols_rename, get_what="nmb", remove_axis=T, label_wrap_width=20), 
+ll_event_rate <- readRDS("output/im22-figures/falls-sensitivity-analyses_fall-rate.rds")
+event_rate_plot <- cowplot::plot_grid(
+  plotlist=get_plot_list(ll_event_rate, cols_rename, get_what="nmb", remove_axis=T, label_wrap_width=20) %>% keep_only_first_plot_strip(), 
   ncol=1,
-  labels=scales::percent(g_event_rate$event_rate)
+  labels=scales::percent(g_event_rate$event_rate), 
+  hjust=0
 )
-ggsave(filename="output/im22-figures/falls-sensitivity-analyses_fall-rate_nmb.jpeg", height=15, width=10)
+saveRDS(event_rate_plot, "output/im22-figures/event_rate_plot.rds")
+ggsave(filename="output/im22-figures/falls-sensitivity-analyses_fall-rate_nmb.jpeg", height=10.5, width=7)
 
 # AUC
-ll1_auc <- readRDS("output/im22-figures/falls-sensitivity-analyses_AUC.rds")
-cowplot::plot_grid(
-  plotlist=get_plot_list(ll1_auc, cols_rename, get_what="nmb", remove_axis=T, label_wrap_width=20), 
+ll_auc <- readRDS("output/im22-figures/falls-sensitivity-analyses_AUC.rds")
+auc_plot <- cowplot::plot_grid(
+  plotlist=get_plot_list(ll_auc, cols_rename, get_what="nmb", remove_axis=T, label_wrap_width=20) %>% keep_only_first_plot_strip(), 
   ncol=1,
-  labels=g_auc$sim_auc
+  labels=g_auc$sim_auc, 
+  hjust=0
 )
-ggsave(filename="output/im22-figures/falls-sensitivity-analyses_AUC_nmb.jpeg", height=15, width=10)
+saveRDS(auc_plot, "output/im22-figures/auc_plot.rds")
+ggsave(filename="output/im22-figures/falls-sensitivity-analyses_AUC_nmb.jpeg", height=10.5, width=7)
 
 ```
 
