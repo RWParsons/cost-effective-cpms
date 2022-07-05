@@ -409,7 +409,8 @@ get_plot_list <- function(out_list,
     if(get_what %in% c("nmb", "inb")){
       results <- out_list[[i]]$df_result
     } else {
-      results <- out_list[[i]]$df_thresholds
+      results <- out_list[[i]]$df_thresholds %>%
+        select(where(~n_distinct(.) > 1))
     }
     if(!missing(rename_vector)){
       results <- rename(results, any_of(rename_vector))
