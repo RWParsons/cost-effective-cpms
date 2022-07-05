@@ -32,10 +32,10 @@ summarize_sims <- function(x, prob, hdi, agg_fx) {
   list(summary=res)
 }
 
-get_summary <- function(data, sample_size, n_sims, n_valid, sim_auc, event_rate, inb_ref_col,
+get_summary <- function(data, sample_size, n_sims, n_valid, sim_auc, event_rate, inb_ref_col=NA,
                         agg_fx=median, hdi=F, ci=0.95, make_max_bold=T, recode_methods_vector=NULL, ...) {
 
-  if(!missing(inb_ref_col)) {
+  if(!is.na(inb_ref_col)) {
     data <-
       data %>%
       mutate(across(!n_sim, function(x) x - !!rlang::sym(inb_ref_col))) %>%
@@ -326,13 +326,13 @@ plot_binned_ridges <- function(data, ci=0.95, hdi=F, limit_y=FALSE, subtitle="",
 }
 
 
-plot_fw_histogram <- function(data, inb_ref_col, ci=0.95, hdi=F, limit_y=FALSE, subtitle="",
+plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, limit_y=FALSE, subtitle="",
                               factor_levels=NULL, agg_fx=median, n_bins=40,
                               n_breaks=3, plot_labels=labs(x="", y=""),
                               agg_line_alpha=0.6, agg_line_size=2, remove_axis=F,
                               label_wrap_width=10) {
 
-  if(!missing(inb_ref_col)) {
+  if(!is.na(inb_ref_col)) {
     data <-
       data %>%
       mutate(across(!n_sim, function(x) x - !!rlang::sym(inb_ref_col))) %>%
@@ -394,16 +394,13 @@ plot_fw_histogram <- function(data, inb_ref_col, ci=0.95, hdi=F, limit_y=FALSE, 
 # extract content from lists (made from parallel processing of simulations)
 get_plot_list <- function(out_list,
                           rename_vector,
-                          inb_ref_col,
+                          inb_ref_col=NA,
                           get_what = c("nmb", "inb", "cutpoints"),
                           reference_group=NULL,
                           ...){
 
   get_what <- get_what[1]
   plotlist <- list()
-  if(get_what=="inb") {
-    inb_ref_col <- inb_ref_col
-  }
 
   for(i in 1:length(out_list)){
     if(get_what %in% c("nmb", "inb")){
@@ -415,7 +412,7 @@ get_plot_list <- function(out_list,
     if(!missing(rename_vector)){
       results <- rename(results, any_of(rename_vector))
     }
-    p <- plot_fw_histogram(data=results, ...)
+    p <- plot_fw_histogram(data=results, inb_ref_col=inb_ref_col, ...)
     plotlist <- c(plotlist, list(p))
   }
   plotlist
@@ -425,7 +422,7 @@ get_plot_list <- function(out_list,
 extract_summaries<- function(out_list,
                              rename_vector,
                              get_what = c("nmb", "inb", "cutpoints"),
-                             inb_ref_col,
+                             inb_ref_col=NA,
                              reference_group=NULL,
                              agg_fx=median,
                              hdi=F,
@@ -433,7 +430,6 @@ extract_summaries<- function(out_list,
                              ...) {
 
   get_what <- get_what[1]
-  inb <- get_what == "inb"
   summarylist <- list()
 
   for(i in 1:length(out_list)){
@@ -456,7 +452,8 @@ extract_summaries<- function(out_list,
           hdi=hdi,
           ci=ci,
           recode_methods_vector=rename_vector,
-          inb_ref_col=inb_ref_col
+          inb_ref_col=inb_ref_col,
+          make_max_bold=(get_what!="cutpoints")
         )
       )
     )
@@ -468,11 +465,11 @@ extract_summaries<- function(out_list,
 
 make_table <- function(l, get_what = c("nmb", "inb", "cutpoints"),
                        rename_vector=cols_rename,
-                       inb_ref_col,
+                       inb_ref_col=NA,
                        agg_fx=median, hdi=F, ci=0.95,
                        hdi_prob=simulation_config$hdi_prob, save_path=NULL) {
   tbl <- rbindlist(extract_summaries(
-    l, rename_vector=rename_vector, get_what=get_what, agg_fx=agg_fx, hdi=hdi, ci=ci
+    l, rename_vector=rename_vector, get_what=get_what, agg_fx=agg_fx, hdi=hdi, ci=ci, inb_ref_col=inb_ref_col
   ))
 
   tbl <-
