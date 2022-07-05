@@ -320,7 +320,9 @@ cols_rename <- c(
 p_falls_nmb <-
   falls_simulation$df_result %>%
   rename(any_of(cols_rename)) %>%
-  plot_fw_histogram(hdi=F, plot_labels=labs(x="Net Monetary Benefit (AUD)\n", y=""))
+  plot_fw_histogram(hdi=F, plot_labels=labs(x="Incremental Net Monetary Benefit (AUD)\n", y=""), inb_ref_col='Treat All')
+
+
 
 p_falls_cutpoints <- 
   falls_simulation$df_thresholds %>%
@@ -333,7 +335,7 @@ p_falls_cutpoints <-
 p_icu_nmb <-
   icu_simulation$df_result %>%
   rename(any_of(cols_rename)) %>%
-  plot_fw_histogram(hdi=F, plot_labels=labs(x="Net Monetary Benefit (AUD)\n", y=""))
+  plot_fw_histogram(hdi=F, plot_labels=labs(x="Incremental Net Monetary Benefit (AUD)\n", y=""), inb_ref_col='Treat None')
 
 p_icu_cutpoints <- 
   icu_simulation$df_thresholds %>%
@@ -364,7 +366,7 @@ falls_summary <- do.call(
     falls_simulation$meta_data, 
     list(
       data=falls_simulation$df_result, agg_fx=median, hdi=F, ci=0.95, 
-      recode_methods_vector=cols_rename
+      recode_methods_vector=cols_rename, inb_ref_col="treat_all"
     )
   )
 )
@@ -375,7 +377,7 @@ icu_summary <- do.call(
     falls_simulation$meta_data, 
     list(
       data=icu_simulation$df_result, agg_fx=median, hdi=F, ci=0.95, 
-      recode_methods_vector=cols_rename
+      recode_methods_vector=cols_rename, inb_ref_col="treat_none"
     )
   )
 )
@@ -388,7 +390,7 @@ primary_analyses_table <-
       escape=F,
       caption=glue::glue("Data presented as median [{percent(0.95, digits=0)} Intervals]")
     ) %>%
-  pack_rows(index=c("ICU readmission"=7, "Inpatient falls"=7)) %>%
+  pack_rows(index=c("ICU readmission"=nrow(icu_summary), "Inpatient falls"=nrow(falls_summary))) %>%
   kable_styling()
 
 primary_analyses_table %>% save_kable(file="output/primary_analyses.html")
@@ -472,31 +474,56 @@ ll_icu <- parallel::parLapply(
   )
 )
 
+# save simulation results
 saveRDS(ll_falls, "output/falls_sensitivity_analyses.rds")
-saveRDS(ll_icu, "output/falls_sensitivity_analyses.rds")
+saveRDS(ll_icu, "output/icu_sensitivity_analyses.rds")
 
+# save INB plots
 cowplot::plot_grid(
-  plotlist=get_plot_list(ll_falls, cols_rename, get_what="nmb"), 
+  plotlist=get_plot_list(ll_falls, cols_rename, get_what="inb", inb_ref_col="treat_all"), 
   ncol=length(unique(g_falls$sim_auc))
 )
-ggsave(filename="output/falls_simulations_nmb.jpeg", height=24, width=12)
+ggsave(filename="output/falls_simulations_inb.jpeg", height=24, width=12)
+
+cowplot::plot_grid(
+  plotlist=get_plot_list(ll_icu, cols_rename, get_what="inb", inb_ref_col="treat_none"), 
+  ncol=length(unique(g_icu$sim_auc))
+)
+ggsave(filename="output/icu_simulations_inb.jpeg", height=24, width=12)
 
 
-cowplot::plot_grid(plotlist=get_plot_list(ll2, cols_rename, get_what="nmb"), ncol=length(unique(g$sim_auc)))
-ggsave(filename="output/icu_simulations_nmb.jpeg", height=24, width=12)
-
-cowplot::plot_grid(plotlist=get_plot_list(ll1, cols_rename, get_what="thresholds"), ncol=length(unique(g$sim_auc)))
+# save selected cutpoints plots
+cowplot::plot_grid(
+  plotlist=get_plot_list(ll_falls, cols_rename, get_what="cutpoints"), 
+  ncol=length(unique(g_falls$sim_auc))
+)
 ggsave(filename="output/falls_simulations_thresholds.jpeg", height=24, width=12)
-cowplot::plot_grid(plotlist=get_plot_list(ll2, cols_rename, get_what="thresholds"), ncol=length(unique(g$sim_auc)))
+
+cowplot::plot_grid(
+  plotlist=get_plot_list(ll_icu, cols_rename, get_what="cutpoints"),
+  ncol=length(unique(g_icu$sim_auc))
+)
 ggsave(filename="output/icu_simulations_thresholds.jpeg", height=24, width=12)
 
 
 
-make_table(ll1, get_what="nmb", rename_vector=cols_rename, save_path="output/falls_nmb_summary.html")
-make_table(ll1, get_what="thresholds", rename_vector=cols_rename, save_path="output/falls_thresholds_summary.html")
+make_table(
+  ll_falls, get_what="inb", rename_vector=cols_rename, 
+  save_path="output/falls_inb_summary.html", inb_ref_col="Treat All"
+)
+make_table(
+  ll_falls, get_what="cutpoints", rename_vector=cols_rename, 
+  save_path="output/falls_thresholds_summary.html"
+)
 
-make_table(ll2, get_what="nmb", save_path="output/icu_nmb_summary.html")
-make_table(ll2, get_what="thresholds", save_path="output/icu_thresholds_summary.html")
+make_table(
+  ll_icu, get_what="inb", rename_vector=cols_rename, 
+  save_path="output/icu_inb_summary.html", inb_ref_col="Treat None"
+)
+make_table(
+  ll_icu, get_what="cutpoints", rename_vector=cols_rename, 
+  save_path="output/icu_thresholds_summary.html"
+)
 
 ```
 
