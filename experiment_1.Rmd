@@ -55,7 +55,7 @@ get_nmb <- function(){
     sd=params$falls$treatment_log_hazard$sd
   ))
   
-  # taken from abstract of Haines (2010), BMC Medicine
+  # taken from abstract of Hill (2015), Lancet
   treatment_cost <- params$falls$treatment_cost
   
   # taken from Morello et al (2015). MJA
