@@ -680,19 +680,19 @@ ggsave(filename="output/im22-figures/falls-sensitivity-analyses_AUC_nmb.jpeg", h
 #     panel.background = element_rect(fill = "transparent", linetype=0)
 #   )
 # 
-# sticker(
-#   p,
-#   p_color = "#000000",
-#   h_fill = "#FFC9C9",
-#   h_color = "#ADD8E6",
-#   package="CPMcosts", 
-#   p_size=20, 
-#   s_x=1, 
-#   s_y=.8, 
-#   s_width=1.4, 
-#   s_height=1.2,
-#   filename="hex.png"
-# )
+sticker(
+  p,
+  p_color = "#000000",
+  h_fill = "#FFC9C9",
+  h_color = "#ADD8E6",
+  package="predictNMB",
+  p_size=20,
+  s_x=1,
+  s_y=.8,
+  s_width=1.4,
+  s_height=1.2,
+  filename="hex.png"
+)
 
 ```
 
