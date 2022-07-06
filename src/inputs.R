@@ -13,7 +13,7 @@ falls_params <- list()
 
 falls_params <- c(
   falls_params,
-  list(treatment_cost=294*1.03^(2022-2013))
+  list(treatment_cost=77.3*1.03^(2022-2013))
 )
 
 #### costs of falls from Morello et al. MJA (https://www.mja.com.au/journal/2015/203/9/extra-resource-burden-hospital-falls-cost-falls-study)
