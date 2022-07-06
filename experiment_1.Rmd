@@ -294,13 +294,15 @@ x <- do_simulation(
 
 falls_simulation <- 
   do_simulation(
-    n_sims=1000, n_valid=10000, sim_auc=0.7, event_rate=0.036,
+    n_sims=5000, n_valid=10000, sim_auc=0.7, event_rate=0.036,
     fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb
   )
 
+saveRDS(falls_simulation, "output/im22-figures/falls_sim_data.rds")
+
 icu_simulation <- 
   do_simulation(
-    n_sims=1000, n_valid=10000, sim_auc=0.8, event_rate=0.01,
+    n_sims=5000, n_valid=10000, sim_auc=0.8, event_rate=0.01,
     fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU
   )
 
@@ -597,9 +599,8 @@ cowplot::plot_grid(
   plotlist=get_plot_list(ll_im22_event_rate, cols_rename, get_what="nmb"),
   ncol=length(unique(g_event_rate$event_rate))
 )
+ggsave(filename="output/im22-figures/falls-sensitivity-analyses_fall-rate_nmb.jpeg", height=6.5, width=7)
 saveRDS(ll_im22_event_rate, "output/im22-figures/falls-sensitivity-analyses_fall-rate.rds")
-ggsave(filename="output/im22-figures/falls-sensitivity-analyses_fall-rate_nmb.jpeg", height=6, width=15)
-
 
 
 ll_im22_auc <- parallel::parLapply(
@@ -623,8 +624,8 @@ cowplot::plot_grid(
   plotlist=get_plot_list(ll_im22_auc, cols_rename, get_what="nmb"), 
   ncol=length(unique(g_auc$sim_auc))
 )
-saveRDS(ll_im22_auc, "output/im22-figures/falls-sensitivity-analyses_AUC.rds")
 ggsave(filename="output/im22-figures/falls-sensitivity-analyses_AUC_nmb.jpeg", height=6, width=15)
+saveRDS(ll_im22_auc, "output/im22-figures/falls-sensitivity-analyses_AUC.rds")
 
 ```
 
@@ -671,7 +672,7 @@ g_auc <- expand.grid(
 # fall rate
 ll_event_rate <- readRDS("output/im22-figures/falls-sensitivity-analyses_fall-rate.rds")
 event_rate_plot <- cowplot::plot_grid(
-  plotlist=get_plot_list(ll_event_rate, cols_rename, get_what="nmb", remove_axis=T, label_wrap_width=20) %>% keep_only_first_plot_strip(), 
+  plotlist=get_plot_list(ll_event_rate, cols_rename, get_what="inb", inb_ref_col="Treat All", remove_axis=T, label_wrap_width=20) %>% keep_only_first_plot_strip(), 
   ncol=1,
   labels=scales::percent(g_event_rate$event_rate), 
   hjust=0
@@ -682,7 +683,7 @@ ggsave(filename="output/im22-figures/falls-sensitivity-analyses_fall-rate_nmb.jp
 # AUC
 ll_auc <- readRDS("output/im22-figures/falls-sensitivity-analyses_AUC.rds")
 auc_plot <- cowplot::plot_grid(
-  plotlist=get_plot_list(ll_auc, cols_rename, get_what="nmb", remove_axis=T, label_wrap_width=20) %>% keep_only_first_plot_strip(), 
+  plotlist=get_plot_list(ll_auc, cols_rename, get_what="inb", inb_ref_col="Treat All", remove_axis=T, label_wrap_width=20) %>% keep_only_first_plot_strip(), 
   ncol=1,
   labels=g_auc$sim_auc, 
   hjust=0
