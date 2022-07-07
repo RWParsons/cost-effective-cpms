@@ -396,7 +396,6 @@ get_plot_list <- function(out_list,
                           rename_vector,
                           inb_ref_col=NA,
                           get_what = c("nmb", "inb", "cutpoints", "calibration"),
-                          reference_group=NULL,
                           ...){
 
   get_what <- get_what[1]
@@ -435,7 +434,6 @@ extract_summaries<- function(out_list,
                              rename_vector,
                              get_what = c("nmb", "inb", "cutpoints"),
                              inb_ref_col=NA,
-                             reference_group=NULL,
                              agg_fx=median,
                              hdi=F,
                              ci=0.95,
@@ -500,4 +498,16 @@ make_table <- function(l, get_what = c("nmb", "inb", "cutpoints"),
     save_kable(tbl, save_path)
   }
   tbl
+}
+
+keep_only_first_plot_strip <- function(plotlist){
+  if(length(plotlist)==1) return(plotlist)
+  for(i in 2:length(plotlist)){
+    plotlist[[i]] <-
+      plotlist[[i]] +
+      theme(
+        strip.text.x = element_blank()
+      )
+  }
+  plotlist
 }
