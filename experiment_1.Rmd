@@ -107,6 +107,7 @@ get_nmb_est <- function() {
     "FP"=-treatment_cost
   )
 }
+
 ```
 
 
@@ -179,9 +180,7 @@ get_nmb_est_ICU <- function() {
 
 do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate, 
                           fx_costs_training, fx_costs_evaluation,
-                          return_summary=T, return_data=T, return_plot=T,
-                          plot_type="boxplot", 
-                          scale=60, use_hdi=TRUE, hdi_prob=0.9,
+                          intercept_adjustment=0, return_calibration_plot=F,
                           seed=42, ...){
   
   if(!is.null(seed)) set.seed(seed)
@@ -198,6 +197,9 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
   } else {
     check_events <- FALSE
   }
+  if(return_calibration_plot){
+    p_calibration <- ggplot() + geom_abline()
+  }
   
   i <- 0
   while(i < n_sims){
@@ -213,10 +215,37 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     }
     i <- i + 1
     model <- glm(actual~predicted, data=train_sample, family=binomial())
-    train_sample$predicted <- predict(model, type="response")
-
     
-    valid_sample$predicted <- predict(model, type="response", newdata=valid_sample)
+    if(intercept_adjustment!=0){
+      train_log_odds <- predict(model) + intercept_adjustment
+      train_sample$predicted <- exp(train_log_odds)/(1+exp(train_log_odds))
+      
+      valid_log_odds <- predict(model, newdata=valid_sample) + intercept_adjustment
+      valid_sample$predicted <- exp(valid_log_odds)/(1+exp(valid_log_odds))
+    } else {
+      train_sample$predicted <- predict(model, type="response")
+      valid_sample$predicted <- predict(model, type="response", newdata=valid_sample)
+    }
+    
+    if(return_calibration_plot){
+      df_calplot <- train_sample %>%
+        mutate(bin = ntile(predicted, 10)) %>%
+        group_by(bin) %>%
+        summarize(
+          n=n(), 
+          bin_pred=mean(predicted),
+          bin_prob=mean(actual),
+          se=sqrt((bin_prob * (1 - bin_prob)) / n),
+          ul = bin_prob + 1.96*se,
+          ll = bin_prob - 1.96*se
+        ) %>%
+        ungroup() 
+      
+      # p_calibration <- p_calibration + geom_pointrange(data=df_calplot, aes(x=bin_pred, y=bin_prob, ymin=ll, ymax=ul), alpha=0.2)
+      p_calibration <- p_calibration + geom_line(data=df_calplot, aes(x=bin_pred, y=bin_prob), alpha=0.2)
+      p_calibration <- p_calibration + geom_point(data=df_calplot, aes(x=bin_pred, y=bin_prob), alpha=0.2)
+    }
+    
     
     training_value_vector <- fx_costs_training()
     
@@ -262,6 +291,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     date_time=Sys.time(),
     df_result=df_result,
     df_thresholds=df_thresholds,
+    # calibration_plot=p_calibration,
     meta_data=list(
       sample_size=sample_size, 
       n_sims=n_sims, 
@@ -273,18 +303,120 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     )
   )
   
+  if(return_calibration_plot){
+     p_calibration <- 
+       p_calibration +
+       theme_bw() +
+       labs(
+         x="Predicted Probability",
+         y="Observed Probability"
+        )
+     res <- append(res, list(calibration_plot = p_calibration))
+  }
+  
   res
 }
 
 
-x <- do_simulation(
-  # sample_size=500,
-  n_sims=100, n_valid=1000, sim_auc=0.8, event_rate=0.01,
-  # fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
-  fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-  plot_type = "histogram",
-  scale=1
+# x <- do_simulation(
+#   # sample_size=500,
+#   n_sims=100, n_valid=1000, sim_auc=0.6, event_rate=0.01,
+#   # fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU,
+#   fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+#   plot_type = "histogram",
+#   scale=1
+# )
+
+
+# x$df_result %>%
+#   plot_fw_histogram(hdi=F, plot_labels=labs(x="Net Monetary Benefit (AUD)\n", y=""))
+
+```
+
+
+```{r}
+cfg <- list(
+  n_sim=500,
+  n_valid=10000,
+  sim_auc=0.7, 
+  event_rate=0.036
 )
+
+x_calibrated <- 
+  do_simulation(
+    n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
+    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+    intercept_adjustment=0, return_calibration_plot = T
+  )
+
+x_adjusted_up <- 
+  do_simulation(
+    n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
+    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+    intercept_adjustment=1, return_calibration_plot = T
+  )
+
+x_adjusted_down <- 
+  do_simulation(
+    n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
+    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+    intercept_adjustment=-1, return_calibration_plot = T
+  )
+
+x_adjusted_up2 <- 
+  do_simulation(
+    n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
+    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+    intercept_adjustment=2, return_calibration_plot = T
+  )
+
+x_adjusted_down2 <- 
+  do_simulation(
+    n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
+    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+    intercept_adjustment=-2, return_calibration_plot = T
+  )
+
+calibration_experiment_list <- list(
+  up2=x_adjusted_up2,
+  up1=x_adjusted_up,
+  calibrated=x_calibrated,
+  down1=x_adjusted_down,
+  down2=x_adjusted_down2
+)
+
+cols_rename <- c(
+  "Treat All"="treat_all",
+  "Treat None"="treat_none",
+  "Cost-effective" ="cost_effective",
+  "The Closest to (0, 1) Criteria"="er", 
+  "Youden"="youden", 
+  "Sens-Spec product"="cz", 
+  "Index of Union"="iu",
+  "Cost- Minimising"="cost_minimising"
+)
+
+
+inb_plots <- get_plot_list(
+  out_list=calibration_experiment_list, 
+  rename_vector=cols_rename, 
+  inb_ref_col = "Treat All",
+  get_what="inb",
+  agg_line_size=1
+)
+
+calibration_plots <- get_plot_list(
+  out_list=calibration_experiment_list, 
+  get_what="calibration"
+)
+
+inb_plots <- keep_only_first_plot_strip(inb_plots)
+inb_cowplot <- cowplot::plot_grid(plotlist=inb_plots, ncol=1)
+calibration_cowplot <- cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
+combined_fig <- cowplot::plot_grid(inb_cowplot, calibration_cowplot, ncol=2)
+
+
+ggsave(filename="output/calibration_plots.jpeg", plot=combined_fig, dpi=600, height=10.5, width=14)
 
 ```
 
@@ -636,18 +768,6 @@ Format falls sensitivity plots for IM22 talk
 # TODO force upper limit of nmb scale to be zero
 # TODO see if it's possible to remove the facet wrap labels for when I stack vertically
 # TODO see if it's easier to show visually, for IM22 anyway, a sensitivity analyses with only 2 other extremes + current
-
-keep_only_first_plot_strip <- function(plotlist){
-  if(length(plotlist)==1) return(plotlist)
-  for(i in 2:length(plotlist)){
-    plotlist[[i]] <- 
-      plotlist[[i]] + 
-      theme(
-        strip.text.x = element_blank()
-      )
-  }
-  plotlist
-}
 
 cols_rename <- c(
   "Treat All"="treat_all",
