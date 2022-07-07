@@ -395,12 +395,24 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, limit_y=FALS
 get_plot_list <- function(out_list,
                           rename_vector,
                           inb_ref_col=NA,
-                          get_what = c("nmb", "inb", "cutpoints"),
+                          get_what = c("nmb", "inb", "cutpoints", "calibration"),
                           reference_group=NULL,
                           ...){
 
   get_what <- get_what[1]
   plotlist <- list()
+
+  if(get_what=="calibration") {
+    for(i in 1:length(out_list)){
+      p <- out_list[[i]]$calibration_plot +
+        scale_x_continuous(limits=c(0, 0.5)) +
+        scale_y_continuous(limits=c(0, 0.5))
+      plotlist <- c(plotlist, list(p))
+    }
+    return(plotlist)
+  }
+
+
 
   for(i in 1:length(out_list)){
     if(get_what %in% c("nmb", "inb")){
