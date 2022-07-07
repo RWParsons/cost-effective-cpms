@@ -139,6 +139,13 @@ get_thresholds <- function(predicted, actual, costs){
     pt_iu <- 1
   }
 
+  costs_pos <- -costs
+
+  pt_cost_minimising <-
+    (costs_pos["FP"] - costs_pos["TN"]) /
+    (costs_pos["FP"] + costs_pos["FN"] - costs_pos["TP"] - costs_pos["TN"])
+  names(pt_cost_minimising) <- NULL
+
   list(
     treat_all=0,
     treat_none=1,
@@ -146,7 +153,8 @@ get_thresholds <- function(predicted, actual, costs){
     er=pt_er,
     youden=pt_youden,
     cz=pt_cz,
-    iu=pt_iu
+    iu=pt_iu,
+    cost_minimising=pt_cost_minimising
   )
 }
 
