@@ -628,13 +628,13 @@ saveRDS(ll_icu, "output/icu_sensitivity_analyses.rds")
 
 # save INB plots
 cowplot::plot_grid(
-  plotlist=get_plot_list(ll_falls, cols_rename, get_what="inb", inb_ref_col="treat_all"), 
+  plotlist=get_plot_list(ll_falls, cols_rename, get_what="inb", inb_ref_col="Treat All"), 
   ncol=length(unique(g_falls$sim_auc))
 )
 ggsave(filename="output/falls_simulations_inb.jpeg", height=24, width=12)
 
 cowplot::plot_grid(
-  plotlist=get_plot_list(ll_icu, cols_rename, get_what="inb", inb_ref_col="treat_none"), 
+  plotlist=get_plot_list(ll_icu, cols_rename, get_what="inb", inb_ref_col="Treat None"), 
   ncol=length(unique(g_icu$sim_auc))
 )
 ggsave(filename="output/icu_simulations_inb.jpeg", height=24, width=12)
