@@ -438,6 +438,15 @@ icu_simulation <-
     fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU
   )
 
+# save primary analyses simulations
+saveRDS(falls_simulation, "output/falls_primary_analyses.rds")
+saveRDS(icu_simulation, "output/icu_primary_analyses.rds")
+
+# load primary analyses
+falls_simulation <- readRDS(falls_simulation, "output/falls_primary_analyses.rds")
+icu_simulation <- readRDS(icu_simulation, "output/icu_primary_analyses.rds")
+
+
 ```
 ## Plots with most realistic AUC and event rate for each use-case
 ```{r}
@@ -611,6 +620,11 @@ ll_icu <- parallel::parLapply(
 # save simulation results
 saveRDS(ll_falls, "output/falls_sensitivity_analyses.rds")
 saveRDS(ll_icu, "output/icu_sensitivity_analyses.rds")
+
+# load simulation results
+# ll_falls <- readRDS("output/falls_sensitivity_analyses.rds")
+# ll_icu <- readRDS("output/icu_sensitivity_analyses.rds")
+
 
 # save INB plots
 cowplot::plot_grid(
