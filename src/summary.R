@@ -330,7 +330,7 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, limit_y=FALS
                               factor_levels=NULL, agg_fx=median, n_bins=40,
                               n_breaks=3, plot_labels=labs(x="", y=""),
                               agg_line_alpha=0.6, agg_line_size=2, remove_axis=F,
-                              label_wrap_width=10) {
+                              label_wrap_width=10, extra_theme=NULL) {
 
   if(!is.na(inb_ref_col)) {
     data <-
@@ -387,6 +387,11 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, limit_y=FALS
   if(remove_axis){
     p <- p + scale_y_continuous(breaks = NULL)
   }
+
+  if(!is.null(extra_theme)){
+    p <- p + extra_theme
+  }
+
   p
 }
 

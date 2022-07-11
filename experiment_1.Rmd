@@ -405,7 +405,8 @@ inb_plots <- get_plot_list(
   rename_vector=cols_rename, 
   inb_ref_col = "Treat All",
   get_what="inb",
-  agg_line_size=1
+  agg_line_size=1,
+  extra_theme=theme(panel.spacing  = unit(0, "lines")) # comment this line out to keep default spacing between facets
 )
 
 calibration_plots <- get_plot_list(
@@ -421,6 +422,7 @@ ggsave(
   filename="output/calibration_experiment/inb_plots.jpeg", 
   height=10.5, width=14)
 # inb_cowplot <- cowplot::plot_grid(plotlist=inb_plots, ncol=1)
+
 inb_cowplot <- cowplot::plot_grid(plotlist=inb_plots, ncol=1, rel_heights = c(0.375, rep(0.3, length(inb_plots)-1)))
 
 
@@ -436,7 +438,7 @@ calibration_cowplot <- cowplot::plot_grid(
 combined_fig <- cowplot::plot_grid(inb_cowplot, calibration_cowplot, ncol=2)
 
 
-ggsave(filename="output/calibration_experiment/calibration_plots2.jpeg", plot=combined_fig, dpi=600, height=10.5, width=14)
+ggsave(filename="output/calibration_experiment/calibration_plots3.jpeg", plot=combined_fig, dpi=600, height=10.5, width=14)
 
 ```
 
@@ -448,13 +450,140 @@ ggplot() + draw_grob(get_plot_component(p, "panel"))
 
 ggplot() + draw_grob(get_plot_component(p, "panel-1"))
 
-
+library(cowplot)
 
 p <- 
   calibration_experiment_list[[1]]$df_result %>% 
   rename(any_of(cols_rename)) %>%
+  # select(1:2) %>%
   plot_fw_histogram()
 
+
+gg_fw_build <-
+  ggplot_build(p)$data[[1]] %>%
+  mutate(bindwidth=xmax-xmin)
+
+mean(gg_fw_build$bindwidth)
+layer_scales(p)$y$range$range
+layer_scales(p)$x$range$range
+
+
+theme_leftmost <- theme(
+  # axis.title.y = element_blank(),
+  # axis.text.y = element_blank(),
+  # axis.ticks.y = element_blank(),
+  
+  axis.title.x = element_blank(),
+  axis.text.x = element_blank(),
+  axis.ticks.x = element_blank(),
+  
+  plot.margin = margin(5.5, 0, 0, 5.5)
+)
+
+theme_others <- theme(
+  axis.title.y = element_blank(),
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  
+  axis.title.x = element_blank(),
+  axis.text.x = element_blank(),
+  axis.ticks.x = element_blank(),
+  plot.margin = margin(5.5, 0, 0, 0)
+)
+
+cols_rename <- c(
+  "Treat All (reference)"="treat_all",
+  "Treat None"="treat_none",
+  "Cost-effective (proposed)" ="cost_effective",
+  "Closest to (0, 1)"="er", 
+  "Youden Index"="youden", 
+  "Sens-Spec product"="cz", 
+  "Index of Union"="iu",
+  "Cost- Minimising"="cost_minimising"
+)
+
+for(i in 1:length(cols_rename)){
+  newplot <- calibration_experiment_list[[1]]$df_result %>% 
+  rename(any_of(cols_rename)) %>%
+  select(1, names(cols_rename)[i]) %>%
+  plot_fw_histogram(
+    binwidth=mean(gg_fw_build$bindwidth)
+  ) +
+  scale_y_continuous(limits=layer_scales(p)$y$range$range)
+  
+  if(i == 1){
+    newplot <- newplot + theme_leftmost
+    plotlist_out <- list(newplot)
+  } else {
+    newplot <- newplot + 
+      scale_x_continuous(limits=layer_scales(p)$x$range$range) +
+      theme_others
+    plotlist_out <- c(plotlist_out, list(newplot))
+  }
+}
+
+plot_grid(plotlist=plotlist_out, nrow=1, rel_widths = c(0.5, rep(0.3, length(plotlist_out)-1)))
+
+p1 <- calibration_experiment_list[[1]]$df_result %>% 
+  rename(any_of(cols_rename)) %>%
+  select(1, 2) %>%
+  plot_fw_histogram(
+    binwidth=mean(gg_fw_build$bindwidth)
+  ) +
+  scale_x_continuous(limits=layer_scales(p)$x$range$range) +
+  scale_y_continuous(limits=layer_scales(p)$y$range$range)
+
+p2 <- calibration_experiment_list[[1]]$df_result %>% 
+  rename(any_of(cols_rename)) %>%
+  select(1, 3) %>%
+  plot_fw_histogram(
+    binwidth=mean(gg_fw_build$bindwidth)
+  ) +
+  scale_x_continuous(limits=layer_scales(p)$x$range$range) +
+  scale_y_continuous(limits=layer_scales(p)$y$range$range)
+
+p3 <- calibration_experiment_list[[1]]$df_result %>% 
+  rename(any_of(cols_rename)) %>%
+  select(1, 4) %>%
+  plot_fw_histogram(
+    binwidth=mean(gg_fw_build$bindwidth)
+  ) +
+  scale_x_continuous(limits=layer_scales(p)$x$range$range) +
+  scale_y_continuous(limits=layer_scales(p)$y$range$range)
+
+
+plot_grid(plotlist=(list(p1, p2, p3)), nrow=1)
+```
+
+
+```{r}
+p1 <- p +
+  theme(
+    plot.margin = margin(5.5, 0, 0, 5.5),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  )
+
+p2 <- p +
+  theme(
+    plot.margin = margin(5.5, 5.5, 0, 0),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    
+    # panel.border = element_blank(),
+    rect = element_rect(fill="transparent")
+  )
+
+
+
+
+plot_grid(plotlist=(list(p1, p2)))
 
 plot_panels <- get_plot_component(p, "panel", return_all=T)
 plot_strip <- get_plot_component(p, "strip", return_all=T)
