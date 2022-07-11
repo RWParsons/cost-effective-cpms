@@ -330,7 +330,10 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, limit_y=FALS
                               factor_levels=NULL, agg_fx=median, n_bins=40,
                               n_breaks=3, plot_labels=labs(x="", y=""),
                               agg_line_alpha=0.6, agg_line_size=2, remove_axis=F,
-                              label_wrap_width=10, extra_theme=NULL) {
+                              label_wrap_width=10,
+                              extra_theme=theme(panel.spacing  = unit(0, "lines"),
+                                                axis.ticks.x = element_blank(),
+                                                axis.text.x = element_blank())) {
 
   if(!is.na(inb_ref_col)) {
     data <-

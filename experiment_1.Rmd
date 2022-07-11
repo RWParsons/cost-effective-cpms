@@ -555,70 +555,6 @@ p3 <- calibration_experiment_list[[1]]$df_result %>%
 plot_grid(plotlist=(list(p1, p2, p3)), nrow=1)
 ```
 
-
-```{r}
-p1 <- p +
-  theme(
-    plot.margin = margin(5.5, 0, 0, 5.5),
-    axis.title.x = element_blank(),
-    axis.text.x = element_blank(),
-    axis.ticks.x = element_blank()
-  )
-
-p2 <- p +
-  theme(
-    plot.margin = margin(5.5, 5.5, 0, 0),
-    axis.title.x = element_blank(),
-    axis.text.x = element_blank(),
-    axis.ticks.x = element_blank(),
-    
-    axis.title.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    
-    # panel.border = element_blank(),
-    rect = element_rect(fill="transparent")
-  )
-
-
-
-
-plot_grid(plotlist=(list(p1, p2)))
-
-plot_panels <- get_plot_component(p, "panel", return_all=T)
-plot_strip <- get_plot_component(p, "strip", return_all=T)
-
-# ggplot() + draw_grob(plot_strip[[1]]) + draw_grob(plot_strip[[2]], x=2, y=2)
-
-
-gg_strips <- 
-  ggplot() + 
-  (gridExtra::arrangeGrob(grobs = plot_strip, nrow=1, padding=50) %>% draw_grob())
-  
-gg_panels <- 
-  ggplot() + 
-  (gridExtra::arrangeGrob(grobs = plot_panels, nrow=1, padding=50) %>% draw_grob())
-
-insert_xaxis_grob(gg_panels, axis_canvas(plot=p)) %>% ggdraw()
-
-axis_canvas(plot=p)
-
-plot_grid(gg_strips, gg_panels, ncol=1, rel_heights = c(0.3,1)) + draw_grob(get_y_axis(p))
-
-ggplot () + (gridExtra::arrangeGrob(plot_strip[[1]], plot_strip[[2]]) %>% draw_grob())
-plot_grid(plotlist = draw_grob(plot_strip))
-
-
-ggplot() + (layer_grob(p, 1)[[1]] %>% draw_grob()) + draw_grob(get_x_axis(p, position="bottom"))
-
-ggplot() + (layer_grob(p, 1)[[1]] %>% draw_grob()) + draw_label("xlab")
-
-
-class(get_x_axis(p))
-ggdraw(get_x_axis(p))
-
-```
-
 # Primary analyses
 
 ```{r, fig.height=10, fid.width=7}
@@ -629,21 +565,21 @@ falls_simulation <-
     fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb
   )
 
-saveRDS(falls_simulation, "output/im22-figures/falls_sim_data.rds")
+# saveRDS(falls_simulation, "output/im22-figures/falls_sim_data.rds")
 
 icu_simulation <- 
   do_simulation(
-    n_sims=5000, n_valid=10000, sim_auc=0.8, event_rate=0.01,
+    n_sims=5000, n_valid=10000, sim_auc=0.7, event_rate=0.01,
     fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU
   )
 
 # save primary analyses simulations
-saveRDS(falls_simulation, "output/falls_primary_analyses.rds")
-saveRDS(icu_simulation, "output/icu_primary_analyses.rds")
+saveRDS(falls_simulation, "output/primary_analyses/falls_primary_analyses.rds")
+saveRDS(icu_simulation, "output/primary_analyses/icu_primary_analyses.rds")
 
 # load primary analyses
-falls_simulation <- readRDS(falls_simulation, "output/falls_primary_analyses.rds")
-icu_simulation <- readRDS(icu_simulation, "output/icu_primary_analyses.rds")
+falls_simulation <- readRDS("output/primary_analyses/falls_primary_analyses.rds")
+icu_simulation <- readRDS("output/primary_analyses/icu_primary_analyses.rds")
 
 
 ```
@@ -653,16 +589,24 @@ cols_rename <- c(
   "Treat All"="treat_all",
   "Treat None"="treat_none",
   "Cost-effective" ="cost_effective",
-  "The Closest to (0, 1) Criteria"="er", 
+  "Closest to (0, 1)"="er", 
   "Youden"="youden", 
   "Sens-Spec product"="cz", 
-  "Index of Union"="iu"
+  "Index of Union"="iu",
+  "Cost- Minimising"="cost_minimising"
 )
+
+PA_CFG <- list(agg_line_size=1)
 
 p_falls_nmb <-
   falls_simulation$df_result %>%
   rename(any_of(cols_rename)) %>%
-  plot_fw_histogram(hdi=F, plot_labels=labs(x="Incremental Net Monetary Benefit (AUD)\n", y=""), inb_ref_col='Treat All')
+  plot_fw_histogram(
+    hdi=F, 
+    plot_labels=labs(x="Incremental Net Monetary Benefit (AUD)\n", y=""), 
+    inb_ref_col='Treat All',
+    agg_line_size=PA_CFG$agg_line_size
+  )
 
 
 
@@ -670,20 +614,35 @@ p_falls_cutpoints <-
   falls_simulation$df_thresholds %>%
   select(-treat_all, -treat_none) %>%
   rename(., any_of(cols_rename)) %>%
-  plot_fw_histogram(hdi=F, plot_labels=labs(x="Selected cutpoint\n", y=""), limit_y=T) 
+  plot_fw_histogram(
+    hdi=F, 
+    plot_labels=labs(x="Selected cutpoint\n", y=""), 
+    limit_y=T,
+    agg_line_size=PA_CFG$agg_line_size
+  ) 
 
 
 
 p_icu_nmb <-
   icu_simulation$df_result %>%
   rename(any_of(cols_rename)) %>%
-  plot_fw_histogram(hdi=F, plot_labels=labs(x="Incremental Net Monetary Benefit (AUD)\n", y=""), inb_ref_col='Treat None')
+  plot_fw_histogram(
+    hdi=F, 
+    plot_labels=labs(x="Incremental Net Monetary Benefit (AUD)\n", y=""), 
+    inb_ref_col='Treat None',
+    agg_line_size=PA_CFG$agg_line_size
+  )
 
 p_icu_cutpoints <- 
   icu_simulation$df_thresholds %>%
   select(-treat_all, -treat_none) %>%
   rename(., any_of(cols_rename)) %>%
-  plot_fw_histogram(hdi=F, plot_labels=labs(x="Selected cutpoint\n", y=""), limit_y=T) 
+  plot_fw_histogram(
+    hdi=F, 
+    plot_labels=labs(x="Selected cutpoint\n", y=""), 
+    limit_y=T,
+    agg_line_size=PA_CFG$agg_line_size
+  ) 
 
 
 cowplot::plot_grid(
@@ -694,7 +653,7 @@ cowplot::plot_grid(
   ncol=2
 )
 
-ggsave(filename="output/primary_results.jpeg", dpi=600, height=10, width=15)
+ggsave(filename="output/primary_analyses/primary_results.jpeg", dpi=600, height=10, width=15)
 
 ```
 
