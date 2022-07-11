@@ -385,6 +385,9 @@ calibration_experiment_list <- list(
   down2=x_adjusted_down2
 )
 
+saveRDS(calibration_experiment_list, "output/calibration_simulations.rds")
+# calibration_experiment_list <- readRDS("output/calibration_simulations.rds")
+
 cols_rename <- c(
   "Treat All"="treat_all",
   "Treat None"="treat_none",
@@ -411,12 +414,79 @@ calibration_plots <- get_plot_list(
 )
 
 inb_plots <- keep_only_first_plot_strip(inb_plots)
-inb_cowplot <- cowplot::plot_grid(plotlist=inb_plots, ncol=1)
-calibration_cowplot <- cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
+
+# test the ggplot below to find the extra rel-height for the first plot (with strips)
+ggsave(
+  plot=cowplot::plot_grid(plotlist=inb_plots, ncol=1, rel_heights = c(0.375, rep(0.3, length(inb_plots)-1))),
+  filename="output/calibration_experiment/inb_plots.jpeg", 
+  height=10.5, width=14)
+# inb_cowplot <- cowplot::plot_grid(plotlist=inb_plots, ncol=1)
+inb_cowplot <- cowplot::plot_grid(plotlist=inb_plots, ncol=1, rel_heights = c(0.375, rep(0.3, length(inb_plots)-1)))
+
+
+cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
+
+calibration_cowplot <- cowplot::plot_grid(
+  plotlist = c(list(NULL), calibration_plots), 
+  ncol=1, 
+  rel_heights = c(0.075,rep(0.3, length(calibration_plots)))
+)
+
+# calibration_cowplot <- cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
 combined_fig <- cowplot::plot_grid(inb_cowplot, calibration_cowplot, ncol=2)
 
 
-ggsave(filename="output/calibration_plots.jpeg", plot=combined_fig, dpi=600, height=10.5, width=14)
+ggsave(filename="output/calibration_experiment/calibration_plots2.jpeg", plot=combined_fig, dpi=600, height=10.5, width=14)
+
+```
+
+attempts at extracting the strip and adding it to an empty plot
+- currently struggling to get the axis out of the original plot to add to new plot
+```{r}
+get_plot_component(plot, "guide-box")
+ggplot() + draw_grob(get_plot_component(p, "panel"))
+
+ggplot() + draw_grob(get_plot_component(p, "panel-1"))
+
+
+
+p <- 
+  calibration_experiment_list[[1]]$df_result %>% 
+  rename(any_of(cols_rename)) %>%
+  plot_fw_histogram()
+
+
+plot_panels <- get_plot_component(p, "panel", return_all=T)
+plot_strip <- get_plot_component(p, "strip", return_all=T)
+
+# ggplot() + draw_grob(plot_strip[[1]]) + draw_grob(plot_strip[[2]], x=2, y=2)
+
+
+gg_strips <- 
+  ggplot() + 
+  (gridExtra::arrangeGrob(grobs = plot_strip, nrow=1, padding=50) %>% draw_grob())
+  
+gg_panels <- 
+  ggplot() + 
+  (gridExtra::arrangeGrob(grobs = plot_panels, nrow=1, padding=50) %>% draw_grob())
+
+insert_xaxis_grob(gg_panels, axis_canvas(plot=p)) %>% ggdraw()
+
+axis_canvas(plot=p)
+
+plot_grid(gg_strips, gg_panels, ncol=1, rel_heights = c(0.3,1)) + draw_grob(get_y_axis(p))
+
+ggplot () + (gridExtra::arrangeGrob(plot_strip[[1]], plot_strip[[2]]) %>% draw_grob())
+plot_grid(plotlist = draw_grob(plot_strip))
+
+
+ggplot() + (layer_grob(p, 1)[[1]] %>% draw_grob()) + draw_grob(get_x_axis(p, position="bottom"))
+
+ggplot() + (layer_grob(p, 1)[[1]] %>% draw_grob()) + draw_label("xlab")
+
+
+class(get_x_axis(p))
+ggdraw(get_x_axis(p))
 
 ```
 
@@ -557,8 +627,10 @@ cl <- makeCluster(n_cluster)
 cl <- parallelly::autoStopCluster(cl)
 
 g_falls <- expand.grid(
-  sim_auc=c(0.65, 0.75, 0.85, 0.95),
-  event_rate=c(0.01, 0.025, 0.036, 0.075, 0.1)
+  # sim_auc=c(0.65, 0.75, 0.85, 0.95),
+  # event_rate=c(0.01, 0.025, 0.036, 0.075, 0.1)
+  sim_auc=c(0.55, 0.7, 0.85),
+  event_rate=c(0.01, 0.036, 0.1)
 )
 
 g_icu <- expand.grid(
@@ -631,7 +703,7 @@ cowplot::plot_grid(
   plotlist=get_plot_list(ll_falls, cols_rename, get_what="inb", inb_ref_col="Treat All"), 
   ncol=length(unique(g_falls$sim_auc))
 )
-ggsave(filename="output/falls_simulations_inb.jpeg", height=24, width=12)
+ggsave(filename="output/sensitivity_analyses/falls_simulations_inb2.jpeg", height=24*0.5, width=12)
 
 cowplot::plot_grid(
   plotlist=get_plot_list(ll_icu, cols_rename, get_what="inb", inb_ref_col="Treat None"), 
