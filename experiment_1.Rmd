@@ -658,7 +658,6 @@ ggsave(filename="output/primary_analyses/primary_results.jpeg", dpi=600, height=
 ```
 
 
-
 ## Table with most realistic AUC and event rate for each use-case
 ```{r}
 falls_summary <- do.call(
@@ -675,7 +674,7 @@ falls_summary <- do.call(
 icu_summary <- do.call(
   get_summary,
   c(
-    falls_simulation$meta_data, 
+    icu_simulation$meta_data, 
     list(
       data=icu_simulation$df_result, agg_fx=median, hdi=F, ci=0.95, 
       recode_methods_vector=cols_rename, inb_ref_col="treat_none"
@@ -685,7 +684,7 @@ icu_summary <- do.call(
 
 primary_analyses_table <- 
   rbind(icu_summary, falls_summary) %>%
-  select("Cutpoint method"=method, "Net Monetary Benefit (AUD)"=summary) %>%
+  select("Cutpoint method"=method, "Incremental Net Monetary Benefit (AUD)"=summary, "Best performing [n (%)]"=n_best_percent) %>%
   formattable() %>%
     kable(
       escape=F,
@@ -694,7 +693,8 @@ primary_analyses_table <-
   pack_rows(index=c("ICU readmission"=nrow(icu_summary), "Inpatient falls"=nrow(falls_summary))) %>%
   kable_styling()
 
-primary_analyses_table %>% save_kable(file="output/primary_analyses.html")
+# primary_analyses_table
+primary_analyses_table %>% save_kable(file="output/primary_analyses/primary_analyses.html")
 
 ```
 

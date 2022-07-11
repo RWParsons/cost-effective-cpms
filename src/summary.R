@@ -45,6 +45,15 @@ get_summary <- function(data, sample_size, n_sims, n_valid, sim_auc, event_rate,
   df_summary <- data %>%
     pivot_longer(!n_sim, names_to="method", values_to="nmb")
 
+  df_n_best <- df_summary %>%
+    group_by(n_sim) %>%
+    arrange(desc(nmb)) %>%
+    slice(1) %>%
+    ungroup() %>%
+    group_by(method) %>%
+    summarize(n_best=n())
+
+
   df_summary <- as.data.table(df_summary)[
     ,
     summarize_sims(x=nmb, prob=ci, hdi=hdi, agg_fx=agg_fx),
@@ -61,6 +70,11 @@ get_summary <- function(data, sample_size, n_sims, n_valid, sim_auc, event_rate,
     values <- as.numeric(str_extract(df_summary$summary, "-?\\d+\\.?\\d*"))
     df_summary$summary[which.max(values)] <- paste0("<b>", df_summary$summary[which.max(values)], "</b>")
   }
+
+  df_summary <- left_join(df_summary, df_n_best, by="method") %>%
+    mutate(n_best = ifelse(is.na(n_best), 0, n_best),
+           percent_best = scales::percent(n_best/n_sims, accuracy=1),
+           n_best_percent = glue::glue("{n_best} ({percent_best})"))
 
   if(!is.null(recode_methods_vector)){
     recode_methods_vector
