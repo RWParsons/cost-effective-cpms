@@ -723,15 +723,13 @@ cl <- makeCluster(n_cluster)
 cl <- parallelly::autoStopCluster(cl)
 
 g_falls <- expand.grid(
-  # sim_auc=c(0.65, 0.75, 0.85, 0.95),
-  # event_rate=c(0.01, 0.025, 0.036, 0.075, 0.1)
   sim_auc=c(0.55, 0.7, 0.85),
   event_rate=c(0.01, 0.036, 0.1)
 )
 
 g_icu <- expand.grid(
-  sim_auc=c(0.65, 0.75, 0.85, 0.95),
-  event_rate=c(0.01, 0.025, 0.05, 0.075, 0.1)
+  sim_auc=c(0.55, 0.7, 0.85),
+  event_rate=c(0.01, 0.025, 0.1)
 )
 
 clusterExport(cl, {
@@ -786,43 +784,109 @@ ll_icu <- parallel::parLapply(
 )
 
 # save simulation results
-saveRDS(ll_falls, "output/falls_sensitivity_analyses.rds")
-saveRDS(ll_icu, "output/icu_sensitivity_analyses.rds")
+saveRDS(ll_falls, "output/sensitivity_analyses/falls_sensitivity_analyses.rds")
+saveRDS(ll_icu, "output/sensitivity_analyses/icu_sensitivity_analyses.rds")
 
 # load simulation results
-# ll_falls <- readRDS("output/falls_sensitivity_analyses.rds")
-# ll_icu <- readRDS("output/icu_sensitivity_analyses.rds")
+ll_falls <- readRDS("output/sensitivity_analyses/falls_sensitivity_analyses.rds")
+ll_icu <- readRDS("output/sensitivity_analyses/icu_sensitivity_analyses.rds")
 
 
-# save INB plots
+```
+
+# save plots from sensitivity analyses
+```{r}
+# FALLS
+falls_inb_plots <- get_plot_list(ll_falls, cols_rename, get_what="inb", inb_ref_col="Treat All")
+
+# add labels to left most graphs for event rate
+event_rate_str <- function(rate) glue::glue("Event Rate = {rate}")
+model_auc_str <- function(auc) glue::glue("Model AUC = {auc}")
+
+falls_inb_plots[[1]] <- falls_inb_plots[[1]] + xlab(event_rate_str(g_falls$event_rate[1]))
+falls_inb_plots[[4]] <- falls_inb_plots[[4]] + xlab(event_rate_str(g_falls$event_rate[4]))
+falls_inb_plots[[7]] <- falls_inb_plots[[7]] + xlab(event_rate_str(g_falls$event_rate[7]))
+
+falls_inb_plots[[7]] <- falls_inb_plots[[7]] + ylab(model_auc_str(g_falls$sim_auc[7]))
+falls_inb_plots[[8]] <- falls_inb_plots[[8]] + ylab(model_auc_str(g_falls$sim_auc[8]))
+falls_inb_plots[[9]] <- falls_inb_plots[[9]] + ylab(model_auc_str(g_falls$sim_auc[9]))
+
+for(i in 1:length(falls_inb_plots)){
+  falls_inb_plots[[i]] <- falls_inb_plots[[i]] + 
+    theme(
+      plot.margin = unit(c(0, 0, 0, 0), "cm"),
+      # panel.grid.major.x = element_blank(),
+      # panel.grid.minor.x = element_blank()
+    )
+}
+
+# add border to primary analyses within panels
+falls_inb_plots[[5]] <- 
+  falls_inb_plots[[5]] +
+  theme(
+    strip.background = element_rect(fill="#ff8ba0")
+  )
+
 cowplot::plot_grid(
-  plotlist=get_plot_list(ll_falls, cols_rename, get_what="inb", inb_ref_col="Treat All"), 
+  plotlist=falls_inb_plots,
   ncol=length(unique(g_falls$sim_auc))
 )
-ggsave(filename="output/sensitivity_analyses/falls_simulations_inb2.jpeg", height=24*0.5, width=12)
+ggsave(filename="output/sensitivity_analyses/falls_simulations_inb.jpeg", height=24*0.5, width=15)
+
+
+
+# ICU discharge
+icu_inb_plots <- get_plot_list(ll_icu, cols_rename, get_what="inb", inb_ref_col="Treat None")
+
+icu_inb_plots[[1]] <- icu_inb_plots[[1]] + xlab(event_rate_str(g_icu$event_rate[1]))
+icu_inb_plots[[4]] <- icu_inb_plots[[4]] + xlab(event_rate_str(g_icu$event_rate[4]))
+icu_inb_plots[[7]] <- icu_inb_plots[[7]] + xlab(event_rate_str(g_icu$event_rate[7]))
+
+icu_inb_plots[[7]] <- icu_inb_plots[[7]] + ylab(model_auc_str(g_icu$sim_auc[7]))
+icu_inb_plots[[8]] <- icu_inb_plots[[8]] + ylab(model_auc_str(g_icu$sim_auc[8]))
+icu_inb_plots[[9]] <- icu_inb_plots[[9]] + ylab(model_auc_str(g_icu$sim_auc[9]))
+
+for(i in 1:length(icu_inb_plots)){
+  icu_inb_plots[[i]] <- icu_inb_plots[[i]] + 
+    theme(
+      plot.margin = unit(c(0, 0, 0, 0), "cm"),
+      # panel.grid.major.x = element_blank(),
+      # panel.grid.minor.x = element_blank()
+    )
+}
+
+# add border to primary analyses within panels
+icu_inb_plots[[5]] <- 
+  icu_inb_plots[[5]] +
+  theme(
+    strip.background = element_rect(fill="#ff8ba0")
+  )
+
 
 cowplot::plot_grid(
-  plotlist=get_plot_list(ll_icu, cols_rename, get_what="inb", inb_ref_col="Treat None"), 
+  plotlist=icu_inb_plots,
   ncol=length(unique(g_icu$sim_auc))
 )
-ggsave(filename="output/icu_simulations_inb.jpeg", height=24, width=12)
+ggsave(filename="output/sensitivity_analyses/icu_simulations_inb.jpeg", height=24*0.5, width=15)
+```
 
-
+```{r}
 # save selected cutpoints plots
-cowplot::plot_grid(
-  plotlist=get_plot_list(ll_falls, cols_rename, get_what="cutpoints"), 
-  ncol=length(unique(g_falls$sim_auc))
-)
-ggsave(filename="output/falls_simulations_thresholds.jpeg", height=24, width=12)
+# cowplot::plot_grid(
+#   plotlist=get_plot_list(ll_falls, cols_rename, get_what="cutpoints"), 
+#   ncol=length(unique(g_falls$sim_auc))
+# )
+# ggsave(filename="output/falls_simulations_thresholds.jpeg", height=24, width=12)
+# 
+# cowplot::plot_grid(
+#   plotlist=get_plot_list(ll_icu, cols_rename, get_what="cutpoints"),
+#   ncol=length(unique(g_icu$sim_auc))
+# )
+# ggsave(filename="output/icu_simulations_thresholds.jpeg", height=24, width=12)
+```
 
-cowplot::plot_grid(
-  plotlist=get_plot_list(ll_icu, cols_rename, get_what="cutpoints"),
-  ncol=length(unique(g_icu$sim_auc))
-)
-ggsave(filename="output/icu_simulations_thresholds.jpeg", height=24, width=12)
 
-
-
+```{r}
 make_table(
   ll_falls, get_what="inb", rename_vector=cols_rename, 
   save_path="output/falls_inb_summary.html", inb_ref_col="Treat All"
