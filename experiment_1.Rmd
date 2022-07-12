@@ -653,6 +653,14 @@ cowplot::plot_grid(
 
 ggsave(filename="output/primary_analyses/primary_results.jpeg", dpi=600, height=7, width=11)
 
+
+# cowplot::plot_grid(
+#   plotlist=list(p_falls_nmb,p_falls_cutpoints), 
+#   labels=LETTERS[1:4],
+#   ncol=2
+# )
+# ggsave(filename="output/primary_analyses/primary_results_falls-only.jpeg", dpi=600, height=4.5, width=11)
+
 ```
 
 
@@ -887,20 +895,24 @@ ggsave(filename="output/sensitivity_analyses/icu_simulations_inb.jpeg", height=2
 ```{r}
 make_table(
   ll_falls, get_what="inb", rename_vector=cols_rename, 
-  save_path="output/falls_inb_summary.html", inb_ref_col="Treat All"
+  save_path="output/sensitivity_analyses/falls_inb_summary.html",
+  inb_ref_col="Treat All"
 )
+
 make_table(
   ll_falls, get_what="cutpoints", rename_vector=cols_rename, 
-  save_path="output/falls_thresholds_summary.html"
+  save_path="output/sensitivity_analyses/falls_thresholds_summary.html"
 )
 
 make_table(
   ll_icu, get_what="inb", rename_vector=cols_rename, 
-  save_path="output/icu_inb_summary.html", inb_ref_col="Treat None"
+  save_path="output/sensitivity_analyses/icu_inb_summary.html", 
+  inb_ref_col="Treat None"
 )
+
 make_table(
   ll_icu, get_what="cutpoints", rename_vector=cols_rename, 
-  save_path="output/icu_thresholds_summary.html"
+  save_path="output/sensitivity_analyses/icu_thresholds_summary.html"
 )
 
 ```

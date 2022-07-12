@@ -507,7 +507,7 @@ make_table <- function(l, get_what = c("nmb", "inb", "cutpoints"),
                        rename_vector=cols_rename,
                        inb_ref_col=NA,
                        agg_fx=median, hdi=F, ci=0.95,
-                       hdi_prob=simulation_config$hdi_prob, save_path=NULL) {
+                       save_path=NULL) {
   tbl <- rbindlist(extract_summaries(
     l, rename_vector=rename_vector, get_what=get_what, agg_fx=agg_fx, hdi=hdi, ci=ci, inb_ref_col=inb_ref_col
   ))
@@ -517,12 +517,12 @@ make_table <- function(l, get_what = c("nmb", "inb", "cutpoints"),
     group_by(sample_size, n_sims, n_valid, sim_auc, event_rate)  %>%
     mutate(.group_id=cur_group_id()) %>%
     ungroup() %>%
-    select(-sample_size, -n_sims, -n_valid, -.group_id) %>%
+    select(-sample_size, -n_sims, -n_valid, -.group_id, -n_best, -percent_best, -n_best_percent) %>%
     select(Rate=event_rate, `Model AUC`=sim_auc, everything()) %>%
     pivot_wider(names_from="method", values_from="summary") %>%
     formattable() %>%
     kable(escape=F,
-          caption=glue::glue("Data presented as median [{percent(hdi_prob, digits=0)} Highest Density Interval]")) %>%
+          caption=glue::glue("Data presented as median [{percent(ci, digits=0)} Intervals]")) %>%
     kable_styling()
   if(!is.null(save_path)) {
     save_kable(tbl, save_path)
