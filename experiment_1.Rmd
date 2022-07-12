@@ -385,14 +385,14 @@ calibration_experiment_list <- list(
   down2=x_adjusted_down2
 )
 
-saveRDS(calibration_experiment_list, "output/calibration_simulations.rds")
-# calibration_experiment_list <- readRDS("output/calibration_simulations.rds")
+saveRDS(calibration_experiment_list, "output/calibration_experiment/calibration_simulations.rds")
+calibration_experiment_list <- readRDS("output/calibration_experiment/calibration_simulations.rds")
 
 cols_rename <- c(
   "Treat All"="treat_all",
   "Treat None"="treat_none",
-  "Cost-effective" ="cost_effective",
-  "The Closest to (0, 1) Criteria"="er", 
+  "Cost- effective" ="cost_effective",
+  "Closest to (0, 1)"="er", 
   "Youden"="youden", 
   "Sens-Spec product"="cz", 
   "Index of Union"="iu",
@@ -405,8 +405,8 @@ inb_plots <- get_plot_list(
   rename_vector=cols_rename, 
   inb_ref_col = "Treat All",
   get_what="inb",
-  agg_line_size=1,
-  extra_theme=theme(panel.spacing  = unit(0, "lines")) # comment this line out to keep default spacing between facets
+  agg_line_size=1
+  # extra_theme=theme(panel.spacing  = unit(0, "lines")) # comment this line out to keep default spacing between facets
 )
 
 calibration_plots <- get_plot_list(
@@ -417,16 +417,16 @@ calibration_plots <- get_plot_list(
 inb_plots <- keep_only_first_plot_strip(inb_plots)
 
 # test the ggplot below to find the extra rel-height for the first plot (with strips)
-ggsave(
-  plot=cowplot::plot_grid(plotlist=inb_plots, ncol=1, rel_heights = c(0.375, rep(0.3, length(inb_plots)-1))),
-  filename="output/calibration_experiment/inb_plots.jpeg", 
-  height=10.5, width=14)
+# ggsave(
+#   plot=cowplot::plot_grid(plotlist=inb_plots, ncol=1, rel_heights = c(0.375, rep(0.3, length(inb_plots)-1))),
+#   filename="output/calibration_experiment/inb_plots.jpeg", 
+#   height=10.5, width=14)
 # inb_cowplot <- cowplot::plot_grid(plotlist=inb_plots, ncol=1)
 
 inb_cowplot <- cowplot::plot_grid(plotlist=inb_plots, ncol=1, rel_heights = c(0.375, rep(0.3, length(inb_plots)-1)))
 
 
-cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
+# cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
 
 calibration_cowplot <- cowplot::plot_grid(
   plotlist = c(list(NULL), calibration_plots), 
@@ -435,10 +435,8 @@ calibration_cowplot <- cowplot::plot_grid(
 )
 
 # calibration_cowplot <- cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
-combined_fig <- cowplot::plot_grid(inb_cowplot, calibration_cowplot, ncol=2)
-
-
-ggsave(filename="output/calibration_experiment/calibration_plots3.jpeg", plot=combined_fig, dpi=600, height=10.5, width=14)
+combined_fig <- cowplot::plot_grid(inb_cowplot, calibration_cowplot, ncol=2, rel_widths = c(0.6,0.25))
+ggsave(filename="output/calibration_experiment/calibration_plots.jpeg", plot=combined_fig, dpi=600, height=8, width=7.3)
 
 ```
 
