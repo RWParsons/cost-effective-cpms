@@ -13,7 +13,7 @@ get_medians <- function(x, nboot=500){
   list(median=m, median_se=sd(boots))
 }
 
-summarize_sims <- function(x, prob, hdi, agg_fx) {
+summarize_sims <- function(x, prob, hdi, agg_fx, interval_in_text=F) {
   r <- function(x) round(x, digits=2)
 
   if(hdi){
@@ -25,9 +25,16 @@ summarize_sims <- function(x, prob, hdi, agg_fx) {
     probs <- c((1 - prob)/2, 1 - (1 - prob)/2)
     quantiles <- quantile(x, probs=probs)
 
-    res <- glue::glue(
-      "{r(agg_fx(x))} [{scales::percent(prob)} Interval:{r(quantiles[[1]])}, {r(quantiles[[2]])}]"
-    )
+    if(interval_in_text){
+      res <- glue::glue(
+        "{r(agg_fx(x))} [{scales::percent(prob)} Interval:{r(quantiles[[1]])}, {r(quantiles[[2]])}]"
+      )
+    }else {
+      res <- glue::glue(
+        "{r(agg_fx(x))} [{r(quantiles[[1]])}, {r(quantiles[[2]])}]"
+      )
+    }
+
   }
   list(summary=res)
 }
@@ -347,7 +354,8 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, limit_y=FALS
                               label_wrap_width=10,
                               extra_theme=theme(panel.spacing  = unit(0, "lines"),
                                                 axis.ticks.x = element_blank(),
-                                                axis.text.x = element_blank())) {
+                                                axis.text.x = element_blank(),
+                                                strip.background = element_rect(fill="#f1f1f1"))) {
 
   if(!is.na(inb_ref_col)) {
     data <-

@@ -588,7 +588,7 @@ icu_simulation <- readRDS("output/primary_analyses/icu_primary_analyses.rds")
 cols_rename <- c(
   "Treat All"="treat_all",
   "Treat None"="treat_none",
-  "Cost-effective" ="cost_effective",
+  "Cost- effective" ="cost_effective",
   "Closest to (0, 1)"="er", 
   "Youden"="youden", 
   "Sens-Spec product"="cz", 
@@ -653,7 +653,7 @@ cowplot::plot_grid(
   ncol=2
 )
 
-ggsave(filename="output/primary_analyses/primary_results.jpeg", dpi=600, height=10, width=15)
+ggsave(filename="output/primary_analyses/primary_results.jpeg", dpi=600, height=7, width=11)
 
 ```
 
@@ -684,13 +684,21 @@ icu_summary <- do.call(
 
 primary_analyses_table <- 
   rbind(icu_summary, falls_summary) %>%
-  select("Cutpoint method"=method, "Incremental Net Monetary Benefit (AUD)"=summary, "Best performing [n (%)]"=n_best_percent) %>%
+  select(
+    "Cutpoint method"=method, 
+    "Incremental Net Monetary Benefit (AUD)"=summary, 
+    "Best performing [n (%)]"=n_best_percent
+  ) %>%
   formattable() %>%
     kable(
       escape=F,
-      caption=glue::glue("Data presented as median [{percent(0.95, digits=0)} Intervals]")
+      caption=glue::glue("Incremental Net Monetary Benefit presented as median [{percent(0.95, digits=0)} Intervals]")
     ) %>%
-  pack_rows(index=c("ICU readmission"=nrow(icu_summary), "Inpatient falls"=nrow(falls_summary))) %>%
+  pack_rows(
+    index=c(
+      "ICU readmission (reference group: Treat None)"=nrow(icu_summary), 
+      "Inpatient falls (reference group: Treat All)"=nrow(falls_summary)
+    )) %>%
   kable_styling()
 
 # primary_analyses_table
