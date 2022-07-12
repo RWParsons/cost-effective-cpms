@@ -75,7 +75,7 @@ get_summary <- function(data, sample_size, n_sims, n_valid, sim_auc, event_rate,
 
   if(make_max_bold){
     values <- as.numeric(str_extract(df_summary$summary, "-?\\d+\\.?\\d*"))
-    df_summary$summary[which.max(values)] <- paste0("<b>", df_summary$summary[which.max(values)], "</b>")
+    df_summary$summary[values==max(values)] <- paste0("<b>", df_summary$summary[values==max(values)], "</b>")
   }
 
   df_summary <- left_join(df_summary, df_n_best, by="method") %>%
