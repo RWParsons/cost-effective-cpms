@@ -598,6 +598,7 @@ PA_CFG <- list(agg_line_size=1)
 
 p_falls_nmb <-
   falls_simulation$df_result %>%
+  # select(-cost_minimising) %>%
   rename(any_of(cols_rename)) %>%
   plot_fw_histogram(
     hdi=F, 
@@ -611,6 +612,7 @@ p_falls_nmb <-
 p_falls_cutpoints <- 
   falls_simulation$df_thresholds %>%
   select(-treat_all, -treat_none) %>%
+  # select(-cost_minimising) %>%
   rename(., any_of(cols_rename)) %>%
   plot_fw_histogram(
     hdi=F, 
@@ -625,41 +627,40 @@ p_icu_nmb <-
   icu_simulation$df_result %>%
   rename(any_of(cols_rename)) %>%
   plot_fw_histogram(
-    hdi=F, 
-    plot_labels=labs(x="Incremental Net Monetary Benefit (AUD)\n", y=""), 
+    hdi=F,
+    plot_labels=labs(x="Incremental Net Monetary Benefit (AUD)\n", y=""),
     inb_ref_col='Treat None',
     agg_line_size=PA_CFG$agg_line_size
   )
 
-p_icu_cutpoints <- 
+p_icu_cutpoints <-
   icu_simulation$df_thresholds %>%
   select(-treat_all, -treat_none) %>%
   rename(., any_of(cols_rename)) %>%
   plot_fw_histogram(
-    hdi=F, 
-    plot_labels=labs(x="Selected cutpoint\n", y=""), 
+    hdi=F,
+    plot_labels=labs(x="Selected cutpoint\n", y=""),
     limit_y=T,
     agg_line_size=PA_CFG$agg_line_size
-  ) 
+  )
 
 
 cowplot::plot_grid(
   plotlist=list(
     p_icu_nmb, p_falls_nmb,
-    p_icu_cutpoints, p_falls_cutpoints), 
+    p_icu_cutpoints, p_falls_cutpoints),
   labels=LETTERS[1:4],
   ncol=2
 )
-
-ggsave(filename="output/primary_analyses/primary_results.jpeg", dpi=600, height=7, width=11)
+# ggsave(filename="output/primary_analyses/primary_results.jpeg", dpi=600, height=7, width=11)
 
 
 # cowplot::plot_grid(
-#   plotlist=list(p_falls_nmb,p_falls_cutpoints), 
+#   plotlist=list(p_falls_nmb,p_falls_cutpoints),
 #   labels=LETTERS[1:4],
 #   ncol=2
 # )
-# ggsave(filename="output/primary_analyses/primary_results_falls-only.jpeg", dpi=600, height=4.5, width=11)
+# ggsave(filename="output/primary_analyses/primary_results_falls-only_for-deliverables.jpeg", dpi=600, height=4.5, width=11)
 
 ```
 
@@ -709,6 +710,33 @@ primary_analyses_table <-
 
 # primary_analyses_table
 primary_analyses_table %>% save_kable(file="output/primary_analyses/primary_analyses.html")
+
+
+
+# primary analyses for deliverable (falls only and remove cost-minimising cutpoint method)
+do.call(
+  get_summary,
+  c(
+    falls_simulation$meta_data, 
+    list(
+      data=select(falls_simulation$df_result, -cost_minimising), agg_fx=median, hdi=F, ci=0.95, 
+      recode_methods_vector=cols_rename, inb_ref_col="treat_all"
+    )
+  )
+) %>%
+  select(
+    "Cutpoint method"=method, 
+    "Incremental Net Monetary Benefit (AUD)"=summary, 
+    "Best performing [n (%)]"=n_best_percent
+  ) %>%
+  formattable() %>%
+    kable(
+      escape=F,
+      caption=glue::glue("Incremental Net Monetary Benefit presented as median [{percent(0.95, digits=0)} Intervals]")
+    ) %>%
+  kable_styling() %>%
+  save_kable(file="output/primary_analyses/primary_results_falls-only_for-deliverables.html")
+
 
 ```
 
