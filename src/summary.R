@@ -437,6 +437,7 @@ get_plot_list <- function(out_list,
                           rename_vector,
                           inb_ref_col=NA,
                           get_what = c("nmb", "inb", "cutpoints", "calibration"),
+                          groups_remove = c(),
                           ...){
 
   get_what <- get_what[1]
@@ -464,7 +465,7 @@ get_plot_list <- function(out_list,
     if(!missing(rename_vector)){
       results <- rename(results, any_of(rename_vector))
     }
-    p <- plot_fw_histogram(data=results, inb_ref_col=inb_ref_col, ...)
+    p <- plot_fw_histogram(data=select(results, -any_of(groups_remove)), inb_ref_col=inb_ref_col, ...)
     plotlist <- c(plotlist, list(p))
   }
   plotlist
