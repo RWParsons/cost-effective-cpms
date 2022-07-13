@@ -73,15 +73,18 @@ get_summary <- function(data, sample_size, n_sims, n_valid, sim_auc, event_rate,
   df_summary$sim_auc <- sim_auc
   df_summary$event_rate <- event_rate
 
-  if(make_max_bold){
-    values <- as.numeric(str_extract(df_summary$summary, "-?\\d+\\.?\\d*"))
-    df_summary$summary[values==max(values)] <- paste0("<b>", df_summary$summary[values==max(values)], "</b>")
-  }
-
   df_summary <- left_join(df_summary, df_n_best, by="method") %>%
     mutate(n_best = ifelse(is.na(n_best), 0, n_best),
            percent_best = scales::percent(n_best/n_sims, accuracy=1),
            n_best_percent = glue::glue("{n_best} ({percent_best})"))
+
+  if(make_max_bold){
+    values <- as.numeric(str_extract(df_summary$summary, "-?\\d+\\.?\\d*"))
+    df_summary$summary[values==max(values)] <- paste0("<b>", df_summary$summary[values==max(values)], "</b>")
+
+    n_bests <- df_summary$n_best
+    df_summary$n_best_percent[n_bests==max(n_bests)] <- paste0("<b>", df_summary$n_best_percent[n_bests==max(n_bests)], "</b>")
+  }
 
   if(!is.null(recode_methods_vector)){
     recode_methods_vector
@@ -355,7 +358,8 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, limit_y=FALS
                               extra_theme=theme(panel.spacing  = unit(0, "lines"),
                                                 axis.ticks.x = element_blank(),
                                                 axis.text.x = element_blank(),
-                                                strip.background = element_rect(fill="#f1f1f1"))) {
+                                                strip.background = element_rect(fill="#f1f1f1")),
+                              only_show_interval=F) {
 
   if(!is.na(inb_ref_col)) {
     data <-
@@ -373,6 +377,13 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, limit_y=FALS
     group_by(name) %>%
     summarize(m=agg_fx(value))
 
+  if(only_show_interval){
+    p_data <- filter(p_data, in_interval)
+    fill_cols <- c("grey50", "#ADD8E6")
+  }else {
+    fill_cols <- c("grey50", "grey50", "#ADD8E6")
+  }
+
   p <-
     p_data %>%
     ggplot(aes(value, fill=in_interval)) +
@@ -380,7 +391,7 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, limit_y=FALS
     coord_flip() +
     facet_wrap(~name, labeller=label_wrap_gen(width=label_wrap_width), nrow=1) +
     theme_bw() +
-    scale_fill_manual(values=c("grey50","grey50", "#ADD8E6")) +
+    scale_fill_manual(values=c(fill_cols)) +
     guides(fill="none") +
     scale_y_continuous(n.breaks=n_breaks) +
     plot_labels
