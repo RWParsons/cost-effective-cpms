@@ -350,7 +350,7 @@ plot_binned_ridges <- function(data, ci=0.95, hdi=F, limit_y=FALSE, subtitle="",
 }
 
 
-plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, limit_y=FALSE, subtitle="",
+plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, dollar_format=TRUE, subtitle="",
                               factor_levels=NULL, agg_fx=median, n_bins=40,
                               n_breaks=3, plot_labels=labs(x="", y=""),
                               agg_line_alpha=0.6, agg_line_size=2, remove_axis=F,
@@ -396,7 +396,7 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, limit_y=FALS
     scale_y_continuous(n.breaks=n_breaks) +
     plot_labels
 
-  if(!limit_y){
+  if(dollar_format){
     p <- p + scale_x_continuous(labels=scales::dollar_format())
   }
 
@@ -465,7 +465,12 @@ get_plot_list <- function(out_list,
     if(!missing(rename_vector)){
       results <- rename(results, any_of(rename_vector))
     }
-    p <- plot_fw_histogram(data=select(results, -any_of(groups_remove)), inb_ref_col=inb_ref_col, ...)
+    p <- plot_fw_histogram(
+      data=select(results, -any_of(groups_remove)),
+      inb_ref_col=inb_ref_col,
+      dollar_format = (get_what=="cutpoints"),
+      ...
+    )
     plotlist <- c(plotlist, list(p))
   }
   plotlist

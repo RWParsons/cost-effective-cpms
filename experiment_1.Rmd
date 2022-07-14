@@ -617,7 +617,7 @@ p_falls_cutpoints <-
   plot_fw_histogram(
     hdi=F, 
     plot_labels=labs(x="Selected cutpoint\n", y=""), 
-    limit_y=T,
+    dollar_format=F,
     agg_line_size=PA_CFG$agg_line_size
   ) 
 
@@ -640,7 +640,7 @@ p_icu_cutpoints <-
   plot_fw_histogram(
     hdi=F,
     plot_labels=labs(x="Selected cutpoint\n", y=""),
-    limit_y=T,
+    dollar_format=F,
     agg_line_size=PA_CFG$agg_line_size
   )
 
@@ -759,6 +759,8 @@ cl <- parallelly::autoStopCluster(cl)
 g_falls <- expand.grid(
   sim_auc=c(0.55, 0.7, 0.85),
   event_rate=c(0.01, 0.036, 0.1)
+  # sim_auc=c(0.7),
+  # event_rate=seq(0.01, 0.075, 0.005)
 )
 
 g_icu <- expand.grid(
@@ -817,6 +819,9 @@ ll_icu <- parallel::parLapply(
   )
 )
 
+# save specific screen for falls across event rates
+saveRDS(ll_falls, "output/sensitivity_analyses/falls_sensitivity_analyses2.rds")
+
 # save simulation results
 saveRDS(ll_falls, "output/sensitivity_analyses/falls_sensitivity_analyses.rds")
 saveRDS(ll_icu, "output/sensitivity_analyses/icu_sensitivity_analyses.rds")
@@ -828,10 +833,33 @@ ll_icu <- readRDS("output/sensitivity_analyses/icu_sensitivity_analyses.rds")
 
 ```
 
+```{r}
+
+falls_inb_plots <- get_plot_list(
+  ll_falls, cols_rename, get_what="inb", 
+  inb_ref_col="Treat All", groups_remove="Cost- Minimising"
+)
+
+falls_cp_plots <- get_plot_list(ll_falls, cols_rename, get_what="cutpoints")
+
+cowplot::plot_grid(
+  plotlist=c(falls_inb_plots, falls_cp_plots),
+  nrow=2,
+  labels=rep(g_falls$event_rate, 2)
+)
+
+ggsave(filename="output/sensitivity_analyses/falls_simulations_inb_for-deliverables_sanity-check.jpeg", height=10, width=45)
+```
+
+
+
 # save plots from sensitivity analyses
 ```{r}
 # FALLS
-falls_inb_plots <- get_plot_list(ll_falls, cols_rename, get_what="inb", inb_ref_col="Treat All")
+falls_inb_plots <- get_plot_list(
+  ll_falls, cols_rename, get_what="inb", inb_ref_col="Treat All", 
+  groups_remove="Cost- Minimising", only_show_interval=T
+)
 
 # add labels to left most graphs for event rate
 event_rate_str <- function(rate) glue::glue("Event Rate = {rate}")
@@ -865,7 +893,9 @@ cowplot::plot_grid(
   plotlist=falls_inb_plots,
   ncol=length(unique(g_falls$sim_auc))
 )
-ggsave(filename="output/sensitivity_analyses/falls_simulations_inb.jpeg", height=24*0.5, width=15)
+
+ggsave(filename="output/sensitivity_analyses/falls_simulations_inb_for-deliverables.jpeg", height=24*0.5, width=15)
+# ggsave(filename="output/sensitivity_analyses/falls_simulations_inb.jpeg", height=24*0.5, width=15)
 
 
 
