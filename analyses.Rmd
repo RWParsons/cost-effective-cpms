@@ -23,6 +23,7 @@ source("src/cutpoint_methods.R")
 source("src/summary.R")
 
 do_new_analyses <- FALSE
+save_plots <- FALSE
 ```
 
 
@@ -442,121 +443,10 @@ calibration_cowplot <- plot_grid(
 
 # calibration_cowplot <- plot_grid(plotlist=calibration_plots, ncol=1)
 combined_fig <- plot_grid(inb_cowplot, calibration_cowplot, ncol=2, rel_widths = c(0.6,0.25))
-ggsave(filename="output/calibration_experiment/calibration_plots.jpeg", plot=combined_fig, dpi=600, height=8, width=7.3)
 
-```
-
-attempts at extracting the strip and adding it to an empty plot
-- currently struggling to get the axis out of the original plot to add to new plot
-```{r}
-get_plot_component(plot, "guide-box")
-ggplot() + draw_grob(get_plot_component(p, "panel"))
-
-ggplot() + draw_grob(get_plot_component(p, "panel-1"))
-
-
-
-p <- 
-  calibration_experiment_list[[1]]$df_result %>% 
-  rename(any_of(cols_rename)) %>%
-  # select(1:2) %>%
-  plot_fw_histogram()
-
-
-gg_fw_build <-
-  ggplot_build(p)$data[[1]] %>%
-  mutate(bindwidth=xmax-xmin)
-
-mean(gg_fw_build$bindwidth)
-layer_scales(p)$y$range$range
-layer_scales(p)$x$range$range
-
-
-theme_leftmost <- theme(
-  # axis.title.y = element_blank(),
-  # axis.text.y = element_blank(),
-  # axis.ticks.y = element_blank(),
-  
-  axis.title.x = element_blank(),
-  axis.text.x = element_blank(),
-  axis.ticks.x = element_blank(),
-  
-  plot.margin = margin(5.5, 0, 0, 5.5)
-)
-
-theme_others <- theme(
-  axis.title.y = element_blank(),
-  axis.text.y = element_blank(),
-  axis.ticks.y = element_blank(),
-  
-  axis.title.x = element_blank(),
-  axis.text.x = element_blank(),
-  axis.ticks.x = element_blank(),
-  plot.margin = margin(5.5, 0, 0, 0)
-)
-
-cols_rename <- c(
-  "Treat All (reference)"="treat_all",
-  "Treat None"="treat_none",
-  "Cost-effective (proposed)" ="cost_effective",
-  "Closest to (0, 1)"="er", 
-  "Youden Index"="youden", 
-  "Sens-Spec product"="cz", 
-  "Index of Union"="iu",
-  "Cost- Minimising"="cost_minimising"
-)
-
-for(i in 1:length(cols_rename)){
-  newplot <- calibration_experiment_list[[1]]$df_result %>% 
-  rename(any_of(cols_rename)) %>%
-  select(1, names(cols_rename)[i]) %>%
-  plot_fw_histogram(
-    binwidth=mean(gg_fw_build$bindwidth)
-  ) +
-  scale_y_continuous(limits=layer_scales(p)$y$range$range)
-  
-  if(i == 1){
-    newplot <- newplot + theme_leftmost
-    plotlist_out <- list(newplot)
-  } else {
-    newplot <- newplot + 
-      scale_x_continuous(limits=layer_scales(p)$x$range$range) +
-      theme_others
-    plotlist_out <- c(plotlist_out, list(newplot))
-  }
+if(save_plots) {
+  ggsave(filename="output/calibration_experiment/calibration_plots.jpeg", plot=combined_fig, dpi=600, height=8, width=7.3)
 }
-
-plot_grid(plotlist=plotlist_out, nrow=1, rel_widths = c(0.5, rep(0.3, length(plotlist_out)-1)))
-
-p1 <- calibration_experiment_list[[1]]$df_result %>% 
-  rename(any_of(cols_rename)) %>%
-  select(1, 2) %>%
-  plot_fw_histogram(
-    binwidth=mean(gg_fw_build$bindwidth)
-  ) +
-  scale_x_continuous(limits=layer_scales(p)$x$range$range) +
-  scale_y_continuous(limits=layer_scales(p)$y$range$range)
-
-p2 <- calibration_experiment_list[[1]]$df_result %>% 
-  rename(any_of(cols_rename)) %>%
-  select(1, 3) %>%
-  plot_fw_histogram(
-    binwidth=mean(gg_fw_build$bindwidth)
-  ) +
-  scale_x_continuous(limits=layer_scales(p)$x$range$range) +
-  scale_y_continuous(limits=layer_scales(p)$y$range$range)
-
-p3 <- calibration_experiment_list[[1]]$df_result %>% 
-  rename(any_of(cols_rename)) %>%
-  select(1, 4) %>%
-  plot_fw_histogram(
-    binwidth=mean(gg_fw_build$bindwidth)
-  ) +
-  scale_x_continuous(limits=layer_scales(p)$x$range$range) +
-  scale_y_continuous(limits=layer_scales(p)$y$range$range)
-
-
-plot_grid(plotlist=(list(p1, p2, p3)), nrow=1)
 ```
 
 # Primary analyses
@@ -655,16 +545,10 @@ plot_grid(
   labels=LETTERS[1:4],
   ncol=2
 )
-# ggsave(filename="output/primary_analyses/primary_results.jpeg", dpi=600, height=7, width=11)
 
-
-# cowplot::plot_grid(
-#   plotlist=list(p_falls_nmb,p_falls_cutpoints),
-#   labels=LETTERS[1:4],
-#   ncol=2
-# )
-# ggsave(filename="output/primary_analyses/primary_results_falls-only_for-deliverables.jpeg", dpi=600, height=4.5, width=11)
-
+if(save_plots) {
+  ggsave(filename="output/primary_analyses/primary_results.jpeg", dpi=600, height=7, width=11)
+}
 ```
 
 
@@ -692,6 +576,7 @@ icu_summary <- do.call(
   )
 )
 
+# primary_analyses_table
 primary_analyses_table <- 
   rbind(icu_summary, falls_summary) %>%
   select(
@@ -709,11 +594,8 @@ primary_analyses_table <-
       "ICU readmission (reference group: Treat None)"=nrow(icu_summary), 
       "Inpatient falls (reference group: Treat All)"=nrow(falls_summary)
     )) %>%
-  kable_styling()
-
-# primary_analyses_table
-primary_analyses_table %>% save_kable(file="output/primary_analyses/primary_analyses.html")
-
+  kable_styling() %>%
+  save_kable(file="output/primary_analyses/primary_analyses.html")
 
 
 # primary analyses for deliverable (falls only and remove cost-minimising cutpoint method)
@@ -739,7 +621,6 @@ do.call(
     ) %>%
   kable_styling() %>%
   save_kable(file="output/primary_analyses/primary_results_falls-only_for-deliverables.html")
-
 
 ```
 
@@ -872,7 +753,9 @@ plot_grid(
   labels=rep(g_falls$event_rate, 2)
 )
 
-ggsave(filename="output/sensitivity_analyses/falls_simulations_inb_for-deliverables_sanity-check.jpeg", height=10, width=45)
+if(save_plots) {
+  ggsave(filename="output/sensitivity_analyses/falls_simulations_inb_for-deliverables_sanity-check.jpeg", height=10, width=45)
+}
 ```
 
 
@@ -918,8 +801,9 @@ plot_grid(
   ncol=length(unique(g_falls$sim_auc))
 )
 
-ggsave(filename="output/sensitivity_analyses/falls_simulations_inb_for-deliverables.jpeg", height=24*0.5, width=15)
-# ggsave(filename="output/sensitivity_analyses/falls_simulations_inb.jpeg", height=24*0.5, width=15)
+if (save_plots) {
+  ggsave(filename="output/sensitivity_analyses/falls_simulations_inb.jpeg", height=24*0.5, width=15)
+}
 
 
 
@@ -955,7 +839,10 @@ plot_grid(
   plotlist=icu_inb_plots,
   ncol=length(unique(g_icu$sim_auc))
 )
-ggsave(filename="output/sensitivity_analyses/icu_simulations_inb.jpeg", height=24*0.5, width=15)
+
+if(save_plots) {
+  ggsave(filename="output/sensitivity_analyses/icu_simulations_inb.jpeg", height=24*0.5, width=15)
+}
 ```
 
 ```{r}
