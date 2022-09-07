@@ -1,5 +1,5 @@
 ---
-title: "Experiment 1"
+title: "Analyses"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: rmarkdown::github_document
 ---
@@ -15,10 +15,14 @@ library(bayestestR)
 library(cutpointr)
 library(kableExtra)
 library(formattable)
+library(cowplot)
+library(parallel)
 source("src/inputs.R")
 source("src/utils.R")
 source("src/cutpoint_methods.R")
 source("src/summary.R")
+
+do_new_analyses <- FALSE
 ```
 
 
@@ -341,51 +345,53 @@ cfg <- list(
   sim_auc=0.7, 
   event_rate=0.036
 )
-
-x_calibrated <- 
-  do_simulation(
-    n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
-    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-    intercept_adjustment=0, return_calibration_plot = T
+if (do_new_analyses | !file.exists("output/calibration_experiment/calibration_simulations.rds")) {
+  x_calibrated <- 
+    do_simulation(
+      n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
+      fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+      intercept_adjustment=0, return_calibration_plot = T
+    )
+  
+  x_adjusted_up <- 
+    do_simulation(
+      n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
+      fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+      intercept_adjustment=1, return_calibration_plot = T
+    )
+  
+  x_adjusted_down <- 
+    do_simulation(
+      n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
+      fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+      intercept_adjustment=-1, return_calibration_plot = T
+    )
+  
+  x_adjusted_up2 <- 
+    do_simulation(
+      n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
+      fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+      intercept_adjustment=2, return_calibration_plot = T
+    )
+  
+  x_adjusted_down2 <- 
+    do_simulation(
+      n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
+      fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
+      intercept_adjustment=-2, return_calibration_plot = T
+    )
+  
+  calibration_experiment_list <- list(
+    up2=x_adjusted_up2,
+    up1=x_adjusted_up,
+    calibrated=x_calibrated,
+    down1=x_adjusted_down,
+    down2=x_adjusted_down2
   )
+  
+  saveRDS(calibration_experiment_list, "output/calibration_experiment/calibration_simulations.rds")
+}
 
-x_adjusted_up <- 
-  do_simulation(
-    n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
-    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-    intercept_adjustment=1, return_calibration_plot = T
-  )
-
-x_adjusted_down <- 
-  do_simulation(
-    n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
-    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-    intercept_adjustment=-1, return_calibration_plot = T
-  )
-
-x_adjusted_up2 <- 
-  do_simulation(
-    n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
-    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-    intercept_adjustment=2, return_calibration_plot = T
-  )
-
-x_adjusted_down2 <- 
-  do_simulation(
-    n_sims=cfg$n_sim, n_valid=cfg$n_valid, sim_auc=cfg$sim_auc, event_rate=cfg$event_rate,
-    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb,
-    intercept_adjustment=-2, return_calibration_plot = T
-  )
-
-calibration_experiment_list <- list(
-  up2=x_adjusted_up2,
-  up1=x_adjusted_up,
-  calibrated=x_calibrated,
-  down1=x_adjusted_down,
-  down2=x_adjusted_down2
-)
-
-saveRDS(calibration_experiment_list, "output/calibration_experiment/calibration_simulations.rds")
 calibration_experiment_list <- readRDS("output/calibration_experiment/calibration_simulations.rds")
 
 cols_rename <- c(
@@ -428,14 +434,14 @@ inb_cowplot <- cowplot::plot_grid(plotlist=inb_plots, ncol=1, rel_heights = c(0.
 
 # cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
 
-calibration_cowplot <- cowplot::plot_grid(
+calibration_cowplot <- plot_grid(
   plotlist = c(list(NULL), calibration_plots), 
   ncol=1, 
   rel_heights = c(0.075,rep(0.3, length(calibration_plots)))
 )
 
-# calibration_cowplot <- cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
-combined_fig <- cowplot::plot_grid(inb_cowplot, calibration_cowplot, ncol=2, rel_widths = c(0.6,0.25))
+# calibration_cowplot <- plot_grid(plotlist=calibration_plots, ncol=1)
+combined_fig <- plot_grid(inb_cowplot, calibration_cowplot, ncol=2, rel_widths = c(0.6,0.25))
 ggsave(filename="output/calibration_experiment/calibration_plots.jpeg", plot=combined_fig, dpi=600, height=8, width=7.3)
 
 ```
@@ -448,7 +454,7 @@ ggplot() + draw_grob(get_plot_component(p, "panel"))
 
 ggplot() + draw_grob(get_plot_component(p, "panel-1"))
 
-library(cowplot)
+
 
 p <- 
   calibration_experiment_list[[1]]$df_result %>% 
@@ -556,32 +562,29 @@ plot_grid(plotlist=(list(p1, p2, p3)), nrow=1)
 # Primary analyses
 
 ```{r, fig.height=10, fid.width=7}
-
-falls_simulation <- 
-  do_simulation(
-    n_sims=5000, n_valid=10000, sim_auc=0.7, event_rate=0.036,
-    fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb
-  )
-
-# saveRDS(falls_simulation, "output/im22-figures/falls_sim_data.rds")
-
-icu_simulation <- 
-  do_simulation(
-    n_sims=5000, n_valid=10000, sim_auc=0.7, event_rate=0.01,
-    fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU
-  )
-
-# save primary analyses simulations
-saveRDS(falls_simulation, "output/primary_analyses/falls_primary_analyses.rds")
-saveRDS(icu_simulation, "output/primary_analyses/icu_primary_analyses.rds")
-
-# load primary analyses
+if (do_new_analyses | !file.exists("output/primary_analyses/falls_primary_analyses.rds")) {
+  falls_simulation <- 
+    do_simulation(
+      n_sims=5000, n_valid=10000, sim_auc=0.7, event_rate=0.036,
+      fx_costs_training=get_nmb_est, fx_costs_evaluation=get_nmb
+    )
+  saveRDS(falls_simulation, "output/primary_analyses/falls_primary_analyses.rds")
+}
 falls_simulation <- readRDS("output/primary_analyses/falls_primary_analyses.rds")
+
+if (do_new_analyses | !file.exists("output/primary_analyses/falls_primary_analyses.rds")) {
+  icu_simulation <- 
+    do_simulation(
+      n_sims=5000, n_valid=10000, sim_auc=0.7, event_rate=0.01,
+      fx_costs_training=get_nmb_est_ICU, fx_costs_evaluation=get_nmb_ICU
+    )
+  saveRDS(icu_simulation, "output/primary_analyses/icu_primary_analyses.rds")
+}
 icu_simulation <- readRDS("output/primary_analyses/icu_primary_analyses.rds")
-
-
 ```
+
 ## Plots with most realistic AUC and event rate for each use-case
+
 ```{r}
 cols_rename <- c(
   "Treat All"="treat_all",
@@ -645,7 +648,7 @@ p_icu_cutpoints <-
   )
 
 
-cowplot::plot_grid(
+plot_grid(
   plotlist=list(
     p_icu_nmb, p_falls_nmb,
     p_icu_cutpoints, p_falls_cutpoints),
@@ -751,86 +754,107 @@ simulation_config <- list(
   n_sims = 5000,
   n_valid = 10000
 )
-library(parallel)
-n_cluster <- detectCores() - 2
-cl <- makeCluster(n_cluster)
-cl <- parallelly::autoStopCluster(cl)
 
-g_falls <- expand.grid(
-  sim_auc=c(0.55, 0.7, 0.85),
-  event_rate=c(0.01, 0.036, 0.1)
-  # sim_auc=c(0.7),
-  # event_rate=seq(0.01, 0.075, 0.005)
-)
+  g_falls <- expand.grid(
+    sim_auc=c(0.55, 0.7, 0.85),
+    event_rate=c(0.01, 0.036, 0.1)
+    # sim_auc=c(0.7),
+    # event_rate=seq(0.01, 0.075, 0.005)
+  )
+  
+  g_icu <- expand.grid(
+    sim_auc=c(0.55, 0.7, 0.85),
+    event_rate=c(0.01, 0.025, 0.1)
+  )
 
-g_icu <- expand.grid(
-  sim_auc=c(0.55, 0.7, 0.85),
-  event_rate=c(0.01, 0.025, 0.1)
-)
-
-clusterExport(cl, {
-  c("do_simulation", "g_falls", "g_icu", "get_nmb", "get_nmb_est", "get_nmb_ICU", "get_nmb_est_ICU", "params", "simulation_config")
-})
-
-invisible(clusterEvalQ(cl, {
-  library(tidyverse)
-  library(data.table)
-  library(ggridges)
-  library(bayestestR)
-  library(cutpointr)
-  source("src/utils.R")
-  source("src/cutpoint_methods.R")
-  source("src/summary.R")
-}))
-
-
-ll_falls <- parallel::parLapply(
-  cl,
-  1:nrow(g_falls),
-  function(i) do.call(
-    do_simulation, 
-    c(
-      simulation_config, 
-      list(
-        sim_auc=g_falls$sim_auc[i],
-        event_rate=g_falls$event_rate[i],
-        fx_costs_training=get_nmb_est, 
-        fx_costs_evaluation=get_nmb
+if (do_new_analyses | !file.exists("output/sensitivity_analyses/falls_sensitivity_analyses.rds")) {
+  n_cluster <- detectCores() - 2
+  cl <- makeCluster(n_cluster)
+  cl <- parallelly::autoStopCluster(cl)
+  
+  clusterExport(cl, {
+    c("do_simulation", "g_falls", "g_icu", "get_nmb", "get_nmb_est", "get_nmb_ICU", "get_nmb_est_ICU", "params", "simulation_config")
+  })
+  
+  invisible(clusterEvalQ(cl, {
+    library(tidyverse)
+    library(data.table)
+    library(ggridges)
+    library(bayestestR)
+    library(cutpointr)
+    source("src/utils.R")
+    source("src/cutpoint_methods.R")
+    source("src/summary.R")
+  }))
+  
+  
+  ll_falls <- parLapply(
+    cl,
+    1:nrow(g_falls),
+    function(i) do.call(
+      do_simulation, 
+      c(
+        simulation_config, 
+        list(
+          sim_auc=g_falls$sim_auc[i],
+          event_rate=g_falls$event_rate[i],
+          fx_costs_training=get_nmb_est, 
+          fx_costs_evaluation=get_nmb
+        )
       )
     )
   )
-)
-
-
-ll_icu <- parallel::parLapply(
-  cl,
-  1:nrow(g_icu),
-  function(i) do.call(
-    do_simulation,
-    c(
-      simulation_config,
-      list(
-        sim_auc=g_icu$sim_auc[i],
-        event_rate=g_icu$event_rate[i],
-        fx_costs_training=get_nmb_est_ICU,
-        fx_costs_evaluation=get_nmb_ICU
+  
+  saveRDS(ll_falls, "output/sensitivity_analyses/falls_sensitivity_analyses.rds")
+}
+  
+if (do_new_analyses | !file.exists("output/sensitivity_analyses/falls_sensitivity_analyses.rds")) {
+  n_cluster <- detectCores() - 2
+  cl <- makeCluster(n_cluster)
+  cl <- parallelly::autoStopCluster(cl)
+  
+  clusterExport(cl, {
+    c("do_simulation", "g_falls", "g_icu", "get_nmb", "get_nmb_est", "get_nmb_ICU", "get_nmb_est_ICU", "params", "simulation_config")
+  })
+  
+  invisible(clusterEvalQ(cl, {
+    library(tidyverse)
+    library(data.table)
+    library(ggridges)
+    library(bayestestR)
+    library(cutpointr)
+    source("src/utils.R")
+    source("src/cutpoint_methods.R")
+    source("src/summary.R")
+  }))
+  
+  ll_icu <- parLapply(
+    cl,
+    1:nrow(g_icu),
+    function(i) do.call(
+      do_simulation,
+      c(
+        simulation_config,
+        list(
+          sim_auc=g_icu$sim_auc[i],
+          event_rate=g_icu$event_rate[i],
+          fx_costs_training=get_nmb_est_ICU,
+          fx_costs_evaluation=get_nmb_ICU
+        )
       )
     )
   )
-)
+  
+  saveRDS(ll_icu, "output/sensitivity_analyses/icu_sensitivity_analyses.rds")
+}
+
 
 # save specific screen for falls across event rates
-saveRDS(ll_falls, "output/sensitivity_analyses/falls_sensitivity_analyses2.rds")
-
-# save simulation results
-saveRDS(ll_falls, "output/sensitivity_analyses/falls_sensitivity_analyses.rds")
-saveRDS(ll_icu, "output/sensitivity_analyses/icu_sensitivity_analyses.rds")
+# saveRDS(ll_falls, "output/sensitivity_analyses/falls_sensitivity_analyses2.rds")
 
 # load simulation results
 ll_falls <- readRDS("output/sensitivity_analyses/falls_sensitivity_analyses.rds")
 ll_icu <- readRDS("output/sensitivity_analyses/icu_sensitivity_analyses.rds")
-
-
 ```
 
 ```{r}
@@ -842,7 +866,7 @@ falls_inb_plots <- get_plot_list(
 
 falls_cp_plots <- get_plot_list(ll_falls, cols_rename, get_what="cutpoints")
 
-cowplot::plot_grid(
+plot_grid(
   plotlist=c(falls_inb_plots, falls_cp_plots),
   nrow=2,
   labels=rep(g_falls$event_rate, 2)
@@ -889,7 +913,7 @@ falls_inb_plots[[5]] <-
     strip.background = element_rect(fill="#ff8ba0")
   )
 
-cowplot::plot_grid(
+plot_grid(
   plotlist=falls_inb_plots,
   ncol=length(unique(g_falls$sim_auc))
 )
@@ -927,7 +951,7 @@ icu_inb_plots[[5]] <-
   )
 
 
-cowplot::plot_grid(
+plot_grid(
   plotlist=icu_inb_plots,
   ncol=length(unique(g_icu$sim_auc))
 )
@@ -1022,7 +1046,7 @@ cols_rename <- c(
 )
 
 
-ll_im22_event_rate <- parallel::parLapply(
+ll_im22_event_rate <- parLapply(
   cl,
   1:nrow(g_event_rate),
   function(i) do.call(
@@ -1049,7 +1073,7 @@ ggsave(filename="output/im22-figures/falls-sensitivity-analyses_fall-rate_nmb.jp
 saveRDS(ll_im22_event_rate, "output/im22-figures/falls-sensitivity-analyses_fall-rate.rds")
 
 
-ll_im22_auc <- parallel::parLapply(
+ll_im22_auc <- parLapply(
   cl,
   1:nrow(g_auc),
   function(i) do.call(
