@@ -1,37 +1,12 @@
----
-title: "Analyses"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: rmarkdown::github_document
-always_allow_html: true
----
+Analyses
+================
+08 September, 2022
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
-set.seed(42)
-library(fitdistrplus)
-library(tidyverse)
-library(data.table)
-library(ggridges)
-library(bayestestR)
-library(cutpointr)
-library(kableExtra)
-library(formattable)
-library(cowplot)
-library(parallel)
-source("src/inputs.R")
-source("src/utils.R")
-source("src/cutpoint_methods.R")
-source("src/summary.R")
+Objective: evaluate the NMB associated with cutpoint methods, including
+the cost-effective cutpoint which is our proposed method that finds the
+cutpoint that maximises the NMB on the training set.
 
-do_new_analyses <- FALSE
-save_plots <- FALSE
-```
-
-
-Objective: evaluate the NMB associated with cutpoint methods, including the cost-effective cutpoint which is our proposed method that finds the cutpoint that maximises the NMB on the training set.
-
-```{r}
-
+``` r
 get_nmb <- function() {
   # WTP from Edney et al (2018), Pharmacoeconomics
   WTP <- params$global$WTP
@@ -70,7 +45,12 @@ get_nmb <- function() {
   )
 }
 get_nmb()
+```
 
+    ##        TN        FN        TP        FP 
+    ##     0.000 -7561.858 -3645.071  -100.859
+
+``` r
 # the same as get_nmb for falls but returns only the point estimates.
 get_nmb_est <- function() {
   WTP <- params$global$WTP
@@ -97,8 +77,7 @@ get_nmb_est <- function() {
 }
 ```
 
-
-```{r}
+``` r
 get_nmb_ICU <- function() {
   WTP <- params$global$WTP
 
@@ -134,7 +113,12 @@ get_nmb_ICU <- function() {
   )
 }
 get_nmb_ICU()
+```
 
+    ##           TN           FN           TP           FP 
+    ##     34.69451 -42916.31986  -4537.10721  -5042.55070
+
+``` r
 # Repeat point estimate replacement for ICU
 get_nmb_est_ICU <- function() {
   WTP <- params$global$WTP
@@ -160,10 +144,9 @@ get_nmb_est_ICU <- function() {
 }
 ```
 
-
 ### Run simulation
-```{r}
 
+``` r
 do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
                           fx_costs_training, fx_costs_evaluation,
                           intercept_adjustment = 0, return_calibration_plot = F,
@@ -231,7 +214,6 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
       p_calibration <- p_calibration + geom_line(data = df_calplot, aes(x = bin_pred, y = bin_prob), alpha = 0.2)
       p_calibration <- p_calibration + geom_point(data = df_calplot, aes(x = bin_pred, y = bin_prob), alpha = 0.2)
     }
-
 
     training_value_vector <- fx_costs_training()
 
@@ -318,8 +300,7 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 #   plot_fw_histogram(hdi=F, plot_labels=labs(x="Net Monetary Benefit (AUD)\n", y=""))
 ```
 
-
-```{r}
+``` r
 cfg <- list(
   n_sim = 500,
   n_valid = 10000,
@@ -431,7 +412,7 @@ if (save_plots) {
 
 # Primary analyses
 
-```{r, fig.height=10, fid.width=7}
+``` r
 if (do_new_analyses | !file.exists("output/primary_analyses/falls_primary_analyses.rds")) {
   falls_simulation <-
     do_simulation(
@@ -455,7 +436,7 @@ icu_simulation <- readRDS("output/primary_analyses/icu_primary_analyses.rds")
 
 ## Plots with most realistic AUC and event rate for each use-case
 
-```{r}
+``` r
 cols_rename <- c(
   "Treat All" = "treat_all",
   "Treat None" = "treat_none",
@@ -526,15 +507,19 @@ plot_grid(
   labels = LETTERS[1:4],
   ncol = 2
 )
+```
 
+![](analyses_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+
+``` r
 if (save_plots) {
   ggsave(filename = "output/primary_analyses/primary_results.jpeg", dpi = 600, height = 7, width = 11)
 }
 ```
 
-
 ## Table with most realistic AUC and event rate for each use-case
-```{r}
+
+``` r
 falls_summary <- do.call(
   get_summary,
   c(
@@ -605,8 +590,7 @@ do.call(
   save_kable(file = "output/primary_analyses/primary_results_falls-only_for-deliverables.html")
 ```
 
-
-```{r, fig.height=24, fig.width=12}
+``` r
 simulation_config <- list(
   n_sims = 5000,
   n_valid = 10000
@@ -718,8 +702,7 @@ ll_falls <- readRDS("output/sensitivity_analyses/falls_sensitivity_analyses.rds"
 ll_icu <- readRDS("output/sensitivity_analyses/icu_sensitivity_analyses.rds")
 ```
 
-```{r}
-
+``` r
 falls_inb_plots <- get_plot_list(
   ll_falls, cols_rename,
   get_what = "inb",
@@ -733,16 +716,19 @@ plot_grid(
   nrow = 2,
   labels = rep(g_falls$event_rate, 2)
 )
+```
 
+![](analyses_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+
+``` r
 if (save_plots) {
   ggsave(filename = "output/sensitivity_analyses/falls_simulations_inb_for-deliverables_sanity-check.jpeg", height = 10, width = 45)
 }
 ```
 
-
-
 # save plots from sensitivity analyses
-```{r}
+
+``` r
 # FALLS
 falls_inb_plots <- get_plot_list(
   ll_falls, cols_rename,
@@ -782,7 +768,11 @@ plot_grid(
   plotlist = falls_inb_plots,
   ncol = length(unique(g_falls$sim_auc))
 )
+```
 
+![](analyses_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+
+``` r
 if (save_plots) {
   ggsave(filename = "output/sensitivity_analyses/falls_simulations_inb.jpeg", height = 24 * 0.5, width = 15)
 }
@@ -821,13 +811,17 @@ plot_grid(
   plotlist = icu_inb_plots,
   ncol = length(unique(g_icu$sim_auc))
 )
+```
 
+![](analyses_files/figure-gfm/unnamed-chunk-10-2.png)<!-- -->
+
+``` r
 if (save_plots) {
   ggsave(filename = "output/sensitivity_analyses/icu_simulations_inb.jpeg", height = 24 * 0.5, width = 15)
 }
 ```
 
-```{r}
+``` r
 # save selected cutpoints plots
 # cowplot::plot_grid(
 #   plotlist=get_plot_list(ll_falls, cols_rename, get_what="cutpoints"),
@@ -842,28 +836,903 @@ if (save_plots) {
 # ggsave(filename="output/icu_simulations_thresholds.jpeg", height=24, width=12)
 ```
 
-
-```{r}
+``` r
 make_table(
   ll_falls,
   get_what = "inb", rename_vector = cols_rename,
   save_path = "output/sensitivity_analyses/falls_inb_summary.html",
   inb_ref_col = "Treat All"
 )
+```
 
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<caption>
+Data presented as median \[95% Intervals\]
+</caption>
+<thead>
+<tr>
+<th style="text-align:right;">
+Rate
+</th>
+<th style="text-align:right;">
+Model AUC
+</th>
+<th style="text-align:left;">
+Treat None
+</th>
+<th style="text-align:left;">
+Cost- effective
+</th>
+<th style="text-align:left;">
+Closest to (0, 1)
+</th>
+<th style="text-align:left;">
+Youden
+</th>
+<th style="text-align:left;">
+Sens-Spec product
+</th>
+<th style="text-align:left;">
+Index of Union
+</th>
+<th style="text-align:left;">
+Cost- Minimising
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+<b>66.64 \[28.85, 85.03\]</b>
+</td>
+<td style="text-align:left;">
+66.56 \[26.74, 84.85\]
+</td>
+<td style="text-align:left;">
+38.14 \[19.58, 49.93\]
+</td>
+<td style="text-align:left;">
+36.78 \[13.23, 61.66\]
+</td>
+<td style="text-align:left;">
+38.09 \[19.56, 50.25\]
+</td>
+<td style="text-align:left;">
+38.2 \[19.36, 47.79\]
+</td>
+<td style="text-align:left;">
+<b>66.64 \[28.85, 85.03\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+66.17 \[29.76, 84.84\]
+</td>
+<td style="text-align:left;">
+65.91 \[35.08, 82.36\]
+</td>
+<td style="text-align:left;">
+53.02 \[36.71, 67.89\]
+</td>
+<td style="text-align:left;">
+51.92 \[28.35, 71.78\]
+</td>
+<td style="text-align:left;">
+52.66 \[35.76, 69.2\]
+</td>
+<td style="text-align:left;">
+52.8 \[37.48, 64.78\]
+</td>
+<td style="text-align:left;">
+<b>66.91 \[36.41, 82.28\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+66.46 \[27.25, 84.85\]
+</td>
+<td style="text-align:left;">
+73.46 \[53.26, 85.02\]
+</td>
+<td style="text-align:left;">
+70.33 \[53.59, 82.78\]
+</td>
+<td style="text-align:left;">
+69.43 \[46.21, 83.03\]
+</td>
+<td style="text-align:left;">
+69.72 \[51.12, 83.01\]
+</td>
+<td style="text-align:left;">
+70.18 \[55.4, 81.89\]
+</td>
+<td style="text-align:left;">
+<b>75.08 \[57.25, 84.07\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.036
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+-23.1 \[-159.33, 41.73\]
+</td>
+<td style="text-align:left;">
+<b>0.58 \[-18.96, 10.51\]</b>
+</td>
+<td style="text-align:left;">
+-3.7 \[-68.21, 26.81\]
+</td>
+<td style="text-align:left;">
+-3.11 \[-75.68, 27.86\]
+</td>
+<td style="text-align:left;">
+-3.64 \[-68.21, 26.83\]
+</td>
+<td style="text-align:left;">
+-3.54 \[-67.53, 26.55\]
+</td>
+<td style="text-align:left;">
+0.38 \[-10.23, 7.29\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.036
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+-22.51 \[-165.15, 41.2\]
+</td>
+<td style="text-align:left;">
+16.99 \[-18.35, 39.56\]
+</td>
+<td style="text-align:left;">
+18.94 \[-40.95, 44\]
+</td>
+<td style="text-align:left;">
+18.29 \[-47.46, 43.57\]
+</td>
+<td style="text-align:left;">
+18.87 \[-42.01, 43.89\]
+</td>
+<td style="text-align:left;">
+<b>19.35 \[-35.49, 43.89\]</b>
+</td>
+<td style="text-align:left;">
+17.47 \[-7.5, 35.81\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.036
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+-23.02 \[-157.34, 41.78\]
+</td>
+<td style="text-align:left;">
+42.02 \[-1.88, 60.41\]
+</td>
+<td style="text-align:left;">
+43.57 \[-17.04, 62.1\]
+</td>
+<td style="text-align:left;">
+42.54 \[-18.59, 61.7\]
+</td>
+<td style="text-align:left;">
+43.17 \[-17.15, 61.74\]
+</td>
+<td style="text-align:left;">
+<b>44.17 \[-8.95, 62.46\]</b>
+</td>
+<td style="text-align:left;">
+42.97 \[16.23, 59.11\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+-242.87 \[-629.7, -63.56\]
+</td>
+<td style="text-align:left;">
+-0.34 \[-5.69, 0.35\]
+</td>
+<td style="text-align:left;">
+-107.34 \[-291.67, -23.35\]
+</td>
+<td style="text-align:left;">
+-101.19 \[-328.57, -15.91\]
+</td>
+<td style="text-align:left;">
+-106.92 \[-291.59, -23.33\]
+</td>
+<td style="text-align:left;">
+-106.6 \[-290.75, -22.7\]
+</td>
+<td style="text-align:left;">
+<b>0 \[0, 0\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+-245.64 \[-623.22, -66.09\]
+</td>
+<td style="text-align:left;">
+0.18 \[-56.15, 8.78\]
+</td>
+<td style="text-align:left;">
+-65.68 \[-234.03, 3.53\]
+</td>
+<td style="text-align:left;">
+-63.23 \[-268.58, 5.52\]
+</td>
+<td style="text-align:left;">
+-65.07 \[-241.82, 3.72\]
+</td>
+<td style="text-align:left;">
+-63.96 \[-217.75, 3.23\]
+</td>
+<td style="text-align:left;">
+<b>0.58 \[-15.3, 6.25\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+-240.78 \[-615.1, -60.32\]
+</td>
+<td style="text-align:left;">
+17.48 \[-46.14, 34.54\]
+</td>
+<td style="text-align:left;">
+-13.43 \[-136.99, 34.07\]
+</td>
+<td style="text-align:left;">
+-10.9 \[-159.74, 35.06\]
+</td>
+<td style="text-align:left;">
+-12.15 \[-150.49, 34.67\]
+</td>
+<td style="text-align:left;">
+-12.84 \[-133.4, 34.8\]
+</td>
+<td style="text-align:left;">
+<b>19.15 \[-4.82, 32.53\]</b>
+</td>
+</tr>
+</tbody>
+</table>
+
+``` r
 make_table(
   ll_falls,
   get_what = "cutpoints", rename_vector = cols_rename,
   save_path = "output/sensitivity_analyses/falls_thresholds_summary.html"
 )
+```
 
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<caption>
+Data presented as median \[95% Intervals\]
+</caption>
+<thead>
+<tr>
+<th style="text-align:right;">
+Rate
+</th>
+<th style="text-align:right;">
+Model AUC
+</th>
+<th style="text-align:left;">
+Cost- effective
+</th>
+<th style="text-align:left;">
+Closest to (0, 1)
+</th>
+<th style="text-align:left;">
+Youden
+</th>
+<th style="text-align:left;">
+Sens-Spec product
+</th>
+<th style="text-align:left;">
+Index of Union
+</th>
+<th style="text-align:left;">
+Cost- Minimising
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+0.02 \[0.01, 1\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.01\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.01\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.01\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.01\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.03, 0.03\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+0.03 \[0.02, 1\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.02\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.02\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.02\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.02\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.03, 0.03\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+0.03 \[0.01, 0.16\]
+</td>
+<td style="text-align:left;">
+0.02 \[0.01, 0.07\]
+</td>
+<td style="text-align:left;">
+0.02 \[0.01, 0.08\]
+</td>
+<td style="text-align:left;">
+0.02 \[0.01, 0.07\]
+</td>
+<td style="text-align:left;">
+0.02 \[0.01, 0.04\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.03, 0.03\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.036
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+0.03 \[0.02, 0.03\]
+</td>
+<td style="text-align:left;">
+0.04 \[0.04, 0.04\]
+</td>
+<td style="text-align:left;">
+0.04 \[0.03, 0.04\]
+</td>
+<td style="text-align:left;">
+0.04 \[0.04, 0.04\]
+</td>
+<td style="text-align:left;">
+0.04 \[0.04, 0.04\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.03, 0.03\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.036
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+0.03 \[0.02, 0.06\]
+</td>
+<td style="text-align:left;">
+0.05 \[0.03, 0.07\]
+</td>
+<td style="text-align:left;">
+0.04 \[0.03, 0.08\]
+</td>
+<td style="text-align:left;">
+0.05 \[0.03, 0.07\]
+</td>
+<td style="text-align:left;">
+0.04 \[0.03, 0.06\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.03, 0.03\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.036
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+0.04 \[0.01, 0.16\]
+</td>
+<td style="text-align:left;">
+0.06 \[0.03, 0.2\]
+</td>
+<td style="text-align:left;">
+0.05 \[0.02, 0.22\]
+</td>
+<td style="text-align:left;">
+0.06 \[0.02, 0.21\]
+</td>
+<td style="text-align:left;">
+0.06 \[0.03, 0.14\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.03, 0.03\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+0.07 \[0.05, 0.09\]
+</td>
+<td style="text-align:left;">
+0.1 \[0.1, 0.11\]
+</td>
+<td style="text-align:left;">
+0.1 \[0.09, 0.12\]
+</td>
+<td style="text-align:left;">
+0.1 \[0.1, 0.11\]
+</td>
+<td style="text-align:left;">
+0.1 \[0.1, 0.11\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.03, 0.03\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+0.05 \[0.02, 0.09\]
+</td>
+<td style="text-align:left;">
+0.12 \[0.09, 0.18\]
+</td>
+<td style="text-align:left;">
+0.12 \[0.07, 0.22\]
+</td>
+<td style="text-align:left;">
+0.12 \[0.08, 0.19\]
+</td>
+<td style="text-align:left;">
+0.12 \[0.09, 0.16\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.03, 0.03\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+0.04 \[0.01, 0.11\]
+</td>
+<td style="text-align:left;">
+0.13 \[0.08, 0.24\]
+</td>
+<td style="text-align:left;">
+0.13 \[0.06, 0.29\]
+</td>
+<td style="text-align:left;">
+0.13 \[0.06, 0.27\]
+</td>
+<td style="text-align:left;">
+0.13 \[0.08, 0.22\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.03, 0.03\]
+</td>
+</tr>
+</tbody>
+</table>
+
+``` r
 make_table(
   ll_icu,
   get_what = "inb", rename_vector = cols_rename,
   save_path = "output/sensitivity_analyses/icu_inb_summary.html",
   inb_ref_col = "Treat None"
 )
+```
 
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<caption>
+Data presented as median \[95% Intervals\]
+</caption>
+<thead>
+<tr>
+<th style="text-align:right;">
+Rate
+</th>
+<th style="text-align:right;">
+Model AUC
+</th>
+<th style="text-align:left;">
+Treat All
+</th>
+<th style="text-align:left;">
+Cost- effective
+</th>
+<th style="text-align:left;">
+Closest to (0, 1)
+</th>
+<th style="text-align:left;">
+Youden
+</th>
+<th style="text-align:left;">
+Sens-Spec product
+</th>
+<th style="text-align:left;">
+Index of Union
+</th>
+<th style="text-align:left;">
+Cost- Minimising
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+-4615.44 \[-7487.39, -2420.84\]
+</td>
+<td style="text-align:left;">
+<b>0 \[0, 0\]</b>
+</td>
+<td style="text-align:left;">
+-2087.34 \[-3486.81, -996.13\]
+</td>
+<td style="text-align:left;">
+-2030.77 \[-4334.36, -581.38\]
+</td>
+<td style="text-align:left;">
+-2080.48 \[-3501.57, -986.17\]
+</td>
+<td style="text-align:left;">
+-2117.9 \[-3451.6, -1006.2\]
+</td>
+<td style="text-align:left;">
+<b>0 \[0, 0\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+-4569.82 \[-7623.74, -2392.13\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-7.63, 0.75\]</b>
+</td>
+<td style="text-align:left;">
+-1407.9 \[-2856.25, -275.69\]
+</td>
+<td style="text-align:left;">
+-1422.81 \[-3587.2, -163.87\]
+</td>
+<td style="text-align:left;">
+-1401.64 \[-3029.28, -263.68\]
+</td>
+<td style="text-align:left;">
+-1471.23 \[-2743.43, -385.56\]
+</td>
+<td style="text-align:left;">
+<b>0 \[0, 0\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+-4612.39 \[-7523.78, -2291.01\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-45.65, 116.07\]</b>
+</td>
+<td style="text-align:left;">
+-692.42 \[-2046.12, 495.31\]
+</td>
+<td style="text-align:left;">
+-748.35 \[-2567.06, 463.09\]
+</td>
+<td style="text-align:left;">
+-738.81 \[-2247.23, 477.24\]
+</td>
+<td style="text-align:left;">
+-730.38 \[-1981.76, 489.4\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-19.4, 81.67\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.025
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+-4289.28 \[-7433.23, 273.15\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-1.11, 0\]</b>
+</td>
+<td style="text-align:left;">
+-1921.98 \[-3482.53, 437.88\]
+</td>
+<td style="text-align:left;">
+-1833.33 \[-4172.02, 391.19\]
+</td>
+<td style="text-align:left;">
+-1915.11 \[-3489.29, 437.88\]
+</td>
+<td style="text-align:left;">
+-1955.95 \[-3443.9, 437.89\]
+</td>
+<td style="text-align:left;">
+<b>0 \[0, 0\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.025
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+-4306.53 \[-7291.83, -53.44\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-31.29, 37.13\]</b>
+</td>
+<td style="text-align:left;">
+-1272.14 \[-2756.71, 1416.6\]
+</td>
+<td style="text-align:left;">
+-1245.97 \[-3453.16, 1364.71\]
+</td>
+<td style="text-align:left;">
+-1264.76 \[-2880.8, 1411.74\]
+</td>
+<td style="text-align:left;">
+-1334.24 \[-2682.23, 1416.15\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-2, 3.05\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.025
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+-4248.57 \[-7362.38, -19.89\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-140.03, 739.01\]</b>
+</td>
+<td style="text-align:left;">
+-566.65 \[-2074.23, 2388.71\]
+</td>
+<td style="text-align:left;">
+-600.96 \[-2486.98, 2375.84\]
+</td>
+<td style="text-align:left;">
+-592.64 \[-2294.39, 2384.99\]
+</td>
+<td style="text-align:left;">
+-610.89 \[-1966.6, 2433.76\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-79.76, 563.72\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+-3331.3 \[-6938.47, 15256.6\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-7.95, 11.75\]</b>
+</td>
+<td style="text-align:left;">
+-1475.34 \[-3256.01, 8410.12\]
+</td>
+<td style="text-align:left;">
+-1258.72 \[-4037.63, 8584.33\]
+</td>
+<td style="text-align:left;">
+-1467.74 \[-3284.63, 8408.7\]
+</td>
+<td style="text-align:left;">
+-1511.98 \[-3261.83, 8470.24\]
+</td>
+<td style="text-align:left;">
+<b>0 \[0, 0\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+-3347.11 \[-7006.44, 15704.94\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-262.44, 1377.23\]</b>
+</td>
+<td style="text-align:left;">
+-891.16 \[-2767.25, 11454.76\]
+</td>
+<td style="text-align:left;">
+-785.79 \[-3324.72, 11453.78\]
+</td>
+<td style="text-align:left;">
+-866.95 \[-2873.58, 11374.15\]
+</td>
+<td style="text-align:left;">
+-951.33 \[-2698.67, 11677.66\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-116.76, 669.05\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+-3384.09 \[-6965.12, 16311.93\]
+</td>
+<td style="text-align:left;">
+30.26 \[-554.39, 6963.17\]
+</td>
+<td style="text-align:left;">
+-404.75 \[-1990.46, 14634.44\]
+</td>
+<td style="text-align:left;">
+-401.49 \[-2297.68, 14634.44\]
+</td>
+<td style="text-align:left;">
+-401.79 \[-2120.46, 14660.18\]
+</td>
+<td style="text-align:left;">
+-426.5 \[-1977.98, 14736.32\]
+</td>
+<td style="text-align:left;">
+<b>54.45 \[-409.89, 6315.58\]</b>
+</td>
+</tr>
+</tbody>
+</table>
+
+``` r
 make_table(
   ll_icu,
   get_what = "cutpoints", rename_vector = cols_rename,
@@ -871,4 +1740,272 @@ make_table(
 )
 ```
 
-
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<caption>
+Data presented as median \[95% Intervals\]
+</caption>
+<thead>
+<tr>
+<th style="text-align:right;">
+Rate
+</th>
+<th style="text-align:right;">
+Model AUC
+</th>
+<th style="text-align:left;">
+Cost- effective
+</th>
+<th style="text-align:left;">
+Closest to (0, 1)
+</th>
+<th style="text-align:left;">
+Youden
+</th>
+<th style="text-align:left;">
+Sens-Spec product
+</th>
+<th style="text-align:left;">
+Index of Union
+</th>
+<th style="text-align:left;">
+Cost- Minimising
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+1 \[0.02, 1\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.01\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.01\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.01\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.01\]
+</td>
+<td style="text-align:left;">
+0.47 \[0.47, 0.47\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+1 \[0.07, 1\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.02\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.02\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.02\]
+</td>
+<td style="text-align:left;">
+0.01 \[0.01, 0.02\]
+</td>
+<td style="text-align:left;">
+0.47 \[0.47, 0.47\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+0.64 \[0.13, 1\]
+</td>
+<td style="text-align:left;">
+0.02 \[0.01, 0.06\]
+</td>
+<td style="text-align:left;">
+0.02 \[0.01, 0.07\]
+</td>
+<td style="text-align:left;">
+0.02 \[0.01, 0.07\]
+</td>
+<td style="text-align:left;">
+0.02 \[0.01, 0.04\]
+</td>
+<td style="text-align:left;">
+0.47 \[0.47, 0.47\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.025
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+1 \[0.04, 1\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.02, 0.03\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.02, 0.03\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.02, 0.03\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.02, 0.03\]
+</td>
+<td style="text-align:left;">
+0.47 \[0.47, 0.47\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.025
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+1 \[0.1, 1\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.02, 0.05\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.02, 0.06\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.02, 0.05\]
+</td>
+<td style="text-align:left;">
+0.03 \[0.02, 0.04\]
+</td>
+<td style="text-align:left;">
+0.47 \[0.47, 0.47\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.025
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+0.48 \[0.16, 1\]
+</td>
+<td style="text-align:left;">
+0.04 \[0.02, 0.16\]
+</td>
+<td style="text-align:left;">
+0.04 \[0.01, 0.17\]
+</td>
+<td style="text-align:left;">
+0.04 \[0.02, 0.16\]
+</td>
+<td style="text-align:left;">
+0.04 \[0.02, 0.1\]
+</td>
+<td style="text-align:left;">
+0.47 \[0.47, 0.47\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.55
+</td>
+<td style="text-align:left;">
+1 \[0.14, 1\]
+</td>
+<td style="text-align:left;">
+0.1 \[0.1, 0.11\]
+</td>
+<td style="text-align:left;">
+0.1 \[0.09, 0.12\]
+</td>
+<td style="text-align:left;">
+0.1 \[0.1, 0.11\]
+</td>
+<td style="text-align:left;">
+0.1 \[0.1, 0.11\]
+</td>
+<td style="text-align:left;">
+0.47 \[0.47, 0.47\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+0.41 \[0.22, 1\]
+</td>
+<td style="text-align:left;">
+0.12 \[0.09, 0.18\]
+</td>
+<td style="text-align:left;">
+0.12 \[0.07, 0.21\]
+</td>
+<td style="text-align:left;">
+0.12 \[0.08, 0.19\]
+</td>
+<td style="text-align:left;">
+0.12 \[0.09, 0.16\]
+</td>
+<td style="text-align:left;">
+0.47 \[0.47, 0.47\]
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.100
+</td>
+<td style="text-align:right;">
+0.85
+</td>
+<td style="text-align:left;">
+0.46 \[0.26, 0.78\]
+</td>
+<td style="text-align:left;">
+0.13 \[0.08, 0.24\]
+</td>
+<td style="text-align:left;">
+0.13 \[0.05, 0.3\]
+</td>
+<td style="text-align:left;">
+0.13 \[0.06, 0.26\]
+</td>
+<td style="text-align:left;">
+0.13 \[0.08, 0.22\]
+</td>
+<td style="text-align:left;">
+0.47 \[0.47, 0.47\]
+</td>
+</tr>
+</tbody>
+</table>
