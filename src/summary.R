@@ -359,7 +359,7 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, dollar_forma
                                                 axis.ticks.x = element_blank(),
                                                 axis.text.x = element_blank(),
                                                 strip.background = element_rect(fill="#f1f1f1")),
-                              only_show_interval=F) {
+                              only_show_interval=F, x_lims = NULL) {
 
   if(!is.na(inb_ref_col)) {
     data <-
@@ -394,7 +394,8 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, dollar_forma
     scale_fill_manual(values=c(fill_cols)) +
     guides(fill="none") +
     scale_y_continuous(n.breaks=n_breaks) +
-    plot_labels
+    plot_labels +
+    scale_x_continuous(limits = x_lims)
 
   if(dollar_format){
     p <- p + scale_x_continuous(labels=scales::dollar_format())
@@ -438,10 +439,14 @@ get_plot_list <- function(out_list,
                           inb_ref_col=NA,
                           get_what = c("nmb", "inb", "cutpoints", "calibration"),
                           groups_remove = c(),
+                          x_lims_list,
                           ...){
 
   get_what <- get_what[1]
   plotlist <- list()
+  if(missing(x_lims_list)) {
+    x_lims_list <- rep(list(NULL), length(out_list))
+  }
 
   if(get_what=="calibration") {
     for(i in 1:length(out_list)){
@@ -469,6 +474,7 @@ get_plot_list <- function(out_list,
       data=select(results, -any_of(groups_remove)),
       inb_ref_col=inb_ref_col,
       dollar_format = (get_what=="cutpoints"),
+      x_lims = unlist(x_lims_list[[i]]),
       ...
     )
     plotlist <- c(plotlist, list(p))

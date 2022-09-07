@@ -744,10 +744,17 @@ if (save_plots) {
 # save plots from sensitivity analyses
 ```{r}
 # FALLS
+falls_axis_limits <- c(
+  rep(list(list(min = -50, max = 100)), 3),
+  rep(list(list(min = -300, max = 100)), 3),
+  rep(list(list(min = -800, max = 100)), 3)
+)
+
 falls_inb_plots <- get_plot_list(
   ll_falls, cols_rename,
   get_what = "inb", inb_ref_col = "Treat All",
-  groups_remove = "Cost- Minimising", only_show_interval = T
+  groups_remove = "Cost- Minimising", only_show_interval = F,
+  x_lims_list = falls_axis_limits
 )
 
 # add labels to left most graphs for event rate
@@ -762,12 +769,11 @@ falls_inb_plots[[7]] <- falls_inb_plots[[7]] + ylab(model_auc_str(g_falls$sim_au
 falls_inb_plots[[8]] <- falls_inb_plots[[8]] + ylab(model_auc_str(g_falls$sim_auc[8]))
 falls_inb_plots[[9]] <- falls_inb_plots[[9]] + ylab(model_auc_str(g_falls$sim_auc[9]))
 
+
 for (i in 1:length(falls_inb_plots)) {
   falls_inb_plots[[i]] <- falls_inb_plots[[i]] +
     theme(
-      plot.margin = unit(c(0, 0, 0, 0), "cm"),
-      # panel.grid.major.x = element_blank(),
-      # panel.grid.minor.x = element_blank()
+      plot.margin = unit(c(0, 0, 0, 0), "cm")
     )
 }
 
@@ -787,10 +793,19 @@ if (save_plots) {
   ggsave(filename = "output/sensitivity_analyses/falls_simulations_inb.jpeg", height = 24 * 0.5, width = 15)
 }
 
-
+icu_axis_limits <- c(
+  rep(list(list(min = -10000, max = 1000)), 3),
+  rep(list(list(min = -10000, max = 4000)), 3),
+  rep(list(list(min = -10000, max = 20000)), 3)
+)
 
 # ICU discharge
-icu_inb_plots <- get_plot_list(ll_icu, cols_rename, get_what = "inb", inb_ref_col = "Treat None")
+icu_inb_plots <- get_plot_list(
+  ll_icu, cols_rename, 
+  get_what = "inb", inb_ref_col = "Treat None",
+  groups_remove = "Cost- Minimising", only_show_interval = F,
+  x_lims_list = icu_axis_limits
+)
 
 icu_inb_plots[[1]] <- icu_inb_plots[[1]] + xlab(event_rate_str(g_icu$event_rate[1]))
 icu_inb_plots[[4]] <- icu_inb_plots[[4]] + xlab(event_rate_str(g_icu$event_rate[4]))
@@ -804,8 +819,6 @@ for (i in 1:length(icu_inb_plots)) {
   icu_inb_plots[[i]] <- icu_inb_plots[[i]] +
     theme(
       plot.margin = unit(c(0, 0, 0, 0), "cm"),
-      # panel.grid.major.x = element_blank(),
-      # panel.grid.minor.x = element_blank()
     )
 }
 
