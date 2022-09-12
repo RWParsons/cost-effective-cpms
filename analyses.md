@@ -1,6 +1,6 @@
 Analyses
 ================
-08 September, 2022
+12 September, 2022
 
 Objective: evaluate the NMB associated with cutpoint methods, including
 the cost-effective cutpoint which is our proposed method that finds the
@@ -161,9 +161,8 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     )
     sample_size <- pmsamp$sample_size
     min_events <- pmsamp$events
-    check_events <- TRUE
   } else {
-    check_events <- FALSE
+    min_events <- round(sample_size * prevalence)
   }
   if (return_calibration_plot) {
     p_calibration <- ggplot() +
@@ -172,16 +171,8 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 
   i <- 0
   while (i < n_sims) {
-    train_sample <- get_sample(auc = sim_auc, n_samples = sample_size, prevalence = event_rate)
-    valid_sample <- get_sample(auc = sim_auc, n_samples = n_valid, prevalence = event_rate)
-    if (length(unique(train_sample$actual)) != 2 | length(unique(valid_sample$actual)) != 2) {
-      next
-    }
-    if (check_events) {
-      if (sum(train_sample$actual) < min_events) {
-        next
-      }
-    }
+    train_sample <- get_sample(auc = sim_auc, n_samples = sample_size, prevalence = event_rate, min_events = min_events)
+    valid_sample <- get_sample(auc = sim_auc, n_samples = n_valid, prevalence = event_rate, min_events = 0)
     i <- i + 1
     model <- glm(actual ~ predicted, data = train_sample, family = binomial())
 
@@ -210,7 +201,6 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
         ) %>%
         ungroup()
 
-      # p_calibration <- p_calibration + geom_pointrange(data=df_calplot, aes(x=bin_pred, y=bin_prob, ymin=ll, ymax=ul), alpha=0.2)
       p_calibration <- p_calibration + geom_line(data = df_calplot, aes(x = bin_pred, y = bin_prob), alpha = 0.2)
       p_calibration <- p_calibration + geom_point(data = df_calplot, aes(x = bin_pred, y = bin_prob), alpha = 0.2)
     }
@@ -259,7 +249,6 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     date_time = Sys.time(),
     df_result = df_result,
     df_thresholds = df_thresholds,
-    # calibration_plot=p_calibration,
     meta_data = list(
       sample_size = sample_size,
       n_sims = n_sims,
@@ -294,10 +283,6 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 #   plot_type = "histogram",
 #   scale=1
 # )
-
-
-# x$df_result %>%
-#   plot_fw_histogram(hdi=F, plot_labels=labs(x="Net Monetary Benefit (AUD)\n", y=""))
 ```
 
 ``` r
@@ -571,7 +556,9 @@ do.call(
   c(
     falls_simulation$meta_data,
     list(
-      data = select(falls_simulation$df_result, -cost_minimising), agg_fx = median, hdi = F, ci = 0.95,
+      # data = select(falls_simulation$df_result, -cost_minimising),
+      data = falls_simulation$df_result,
+      agg_fx = median, hdi = F, ci = 0.95,
       recode_methods_vector = cols_rename, inb_ref_col = "treat_all"
     )
   )
@@ -703,37 +690,41 @@ ll_icu <- readRDS("output/sensitivity_analyses/icu_sensitivity_analyses.rds")
 ```
 
 ``` r
-falls_inb_plots <- get_plot_list(
-  ll_falls, cols_rename,
-  get_what = "inb",
-  inb_ref_col = "Treat All", groups_remove = "Cost- Minimising"
-)
-
-falls_cp_plots <- get_plot_list(ll_falls, cols_rename, get_what = "cutpoints")
-
-plot_grid(
-  plotlist = c(falls_inb_plots, falls_cp_plots),
-  nrow = 2,
-  labels = rep(g_falls$event_rate, 2)
-)
-```
-
-![](analyses_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
-
-``` r
-if (save_plots) {
-  ggsave(filename = "output/sensitivity_analyses/falls_simulations_inb_for-deliverables_sanity-check.jpeg", height = 10, width = 45)
-}
+# falls_inb_plots <- get_plot_list(
+#   ll_falls, cols_rename,
+#   get_what = "inb",
+#   inb_ref_col = "Treat All", groups_remove = "Cost- Minimising"
+# )
+# 
+# falls_cp_plots <- get_plot_list(ll_falls, cols_rename, get_what = "cutpoints")
+# 
+# plot_grid(
+#   plotlist = c(falls_inb_plots, falls_cp_plots),
+#   nrow = 2,
+#   labels = rep(g_falls$event_rate, 2)
+# )
+# 
+# if (save_plots) {
+#   ggsave(filename = "output/sensitivity_analyses/falls_simulations_inb_for-deliverables_sanity-check.jpeg", height = 10, width = 45)
+# }
 ```
 
 # save plots from sensitivity analyses
 
 ``` r
 # FALLS
+falls_axis_limits <- c(
+  rep(list(list(min = -50, max = 100)), 3),
+  rep(list(list(min = -300, max = 100)), 3),
+  rep(list(list(min = -800, max = 100)), 3)
+)
+
 falls_inb_plots <- get_plot_list(
   ll_falls, cols_rename,
   get_what = "inb", inb_ref_col = "Treat All",
-  groups_remove = "Cost- Minimising", only_show_interval = T
+  # groups_remove = "Cost- Minimising", 
+  only_show_interval = F,
+  x_lims_list = falls_axis_limits
 )
 
 # add labels to left most graphs for event rate
@@ -748,12 +739,11 @@ falls_inb_plots[[7]] <- falls_inb_plots[[7]] + ylab(model_auc_str(g_falls$sim_au
 falls_inb_plots[[8]] <- falls_inb_plots[[8]] + ylab(model_auc_str(g_falls$sim_auc[8]))
 falls_inb_plots[[9]] <- falls_inb_plots[[9]] + ylab(model_auc_str(g_falls$sim_auc[9]))
 
+
 for (i in 1:length(falls_inb_plots)) {
   falls_inb_plots[[i]] <- falls_inb_plots[[i]] +
     theme(
-      plot.margin = unit(c(0, 0, 0, 0), "cm"),
-      # panel.grid.major.x = element_blank(),
-      # panel.grid.minor.x = element_blank()
+      plot.margin = unit(c(0, 0, 0, 0), "cm")
     )
 }
 
@@ -777,10 +767,20 @@ if (save_plots) {
   ggsave(filename = "output/sensitivity_analyses/falls_simulations_inb.jpeg", height = 24 * 0.5, width = 15)
 }
 
-
+icu_axis_limits <- c(
+  rep(list(list(min = -10000, max = 1000)), 3),
+  rep(list(list(min = -10000, max = 4000)), 3),
+  rep(list(list(min = -10000, max = 20000)), 3)
+)
 
 # ICU discharge
-icu_inb_plots <- get_plot_list(ll_icu, cols_rename, get_what = "inb", inb_ref_col = "Treat None")
+icu_inb_plots <- get_plot_list(
+  ll_icu, cols_rename, 
+  get_what = "inb", inb_ref_col = "Treat None",
+  # groups_remove = "Cost- Minimising", 
+  only_show_interval = F,
+  x_lims_list = icu_axis_limits
+)
 
 icu_inb_plots[[1]] <- icu_inb_plots[[1]] + xlab(event_rate_str(g_icu$event_rate[1]))
 icu_inb_plots[[4]] <- icu_inb_plots[[4]] + xlab(event_rate_str(g_icu$event_rate[4]))
@@ -794,8 +794,6 @@ for (i in 1:length(icu_inb_plots)) {
   icu_inb_plots[[i]] <- icu_inb_plots[[i]] +
     theme(
       plot.margin = unit(c(0, 0, 0, 0), "cm"),
-      # panel.grid.major.x = element_blank(),
-      # panel.grid.minor.x = element_blank()
     )
 }
 
@@ -889,25 +887,25 @@ Cost- Minimising
 0.55
 </td>
 <td style="text-align:left;">
-<b>66.64 \[28.85, 85.03\]</b>
+<b>66.37 \[27.83, 84.33\]</b>
 </td>
 <td style="text-align:left;">
-66.56 \[26.74, 84.85\]
+66.22 \[24.63, 84.15\]
 </td>
 <td style="text-align:left;">
-38.14 \[19.58, 49.93\]
+38.23 \[19.2, 49.61\]
 </td>
 <td style="text-align:left;">
-36.78 \[13.23, 61.66\]
+36.91 \[12.96, 61.45\]
 </td>
 <td style="text-align:left;">
-38.09 \[19.56, 50.25\]
+38.12 \[19.2, 50.09\]
 </td>
 <td style="text-align:left;">
-38.2 \[19.36, 47.79\]
+38.11 \[19.46, 47.36\]
 </td>
 <td style="text-align:left;">
-<b>66.64 \[28.85, 85.03\]</b>
+<b>66.37 \[27.83, 84.33\]</b>
 </td>
 </tr>
 <tr>
@@ -918,25 +916,25 @@ Cost- Minimising
 0.70
 </td>
 <td style="text-align:left;">
-66.17 \[29.76, 84.84\]
+66.99 \[28.33, 84.84\]
 </td>
 <td style="text-align:left;">
-65.91 \[35.08, 82.36\]
+66.93 \[31.77, 83.12\]
 </td>
 <td style="text-align:left;">
-53.02 \[36.71, 67.89\]
+53.38 \[36.24, 68.79\]
 </td>
 <td style="text-align:left;">
-51.92 \[28.35, 71.78\]
+51.97 \[28.07, 72.47\]
 </td>
 <td style="text-align:left;">
-52.66 \[35.76, 69.2\]
+52.86 \[35.38, 70.31\]
 </td>
 <td style="text-align:left;">
-52.8 \[37.48, 64.78\]
+53.1 \[37.4, 65.21\]
 </td>
 <td style="text-align:left;">
-<b>66.91 \[36.41, 82.28\]</b>
+<b>67.6 \[33.11, 83.34\]</b>
 </td>
 </tr>
 <tr>
@@ -947,25 +945,25 @@ Cost- Minimising
 0.85
 </td>
 <td style="text-align:left;">
-66.46 \[27.25, 84.85\]
+66.58 \[26.92, 85.46\]
 </td>
 <td style="text-align:left;">
-73.46 \[53.26, 85.02\]
+73.88 \[48.38, 85.81\]
 </td>
 <td style="text-align:left;">
-70.33 \[53.59, 82.78\]
+70.51 \[52.34, 83.32\]
 </td>
 <td style="text-align:left;">
-69.43 \[46.21, 83.03\]
+69.3 \[45.56, 83.39\]
 </td>
 <td style="text-align:left;">
-69.72 \[51.12, 83.01\]
+69.61 \[49.75, 83.35\]
 </td>
 <td style="text-align:left;">
-70.18 \[55.4, 81.89\]
+70.17 \[54.49, 82.49\]
 </td>
 <td style="text-align:left;">
-<b>75.08 \[57.25, 84.07\]</b>
+<b>75.19 \[52.47, 85.84\]</b>
 </td>
 </tr>
 <tr>
@@ -976,25 +974,25 @@ Cost- Minimising
 0.55
 </td>
 <td style="text-align:left;">
--23.1 \[-159.33, 41.73\]
+-24.05 \[-156.55, 40.86\]
 </td>
 <td style="text-align:left;">
-<b>0.58 \[-18.96, 10.51\]</b>
+<b>0.57 \[-23.85, 13.07\]</b>
 </td>
 <td style="text-align:left;">
--3.7 \[-68.21, 26.81\]
+-4.4 \[-70.07, 26.63\]
 </td>
 <td style="text-align:left;">
--3.11 \[-75.68, 27.86\]
+-3.95 \[-76.31, 28.03\]
 </td>
 <td style="text-align:left;">
--3.64 \[-68.21, 26.83\]
+-4.41 \[-70.5, 26.81\]
 </td>
 <td style="text-align:left;">
--3.54 \[-67.53, 26.55\]
+-4.34 \[-67.74, 26.26\]
 </td>
 <td style="text-align:left;">
-0.38 \[-10.23, 7.29\]
+0.49 \[-14.63, 10.04\]
 </td>
 </tr>
 <tr>
@@ -1005,25 +1003,25 @@ Cost- Minimising
 0.70
 </td>
 <td style="text-align:left;">
--22.51 \[-165.15, 41.2\]
+-23.42 \[-156.56, 42.32\]
 </td>
 <td style="text-align:left;">
-16.99 \[-18.35, 39.56\]
+17.4 \[-34.17, 42.13\]
 </td>
 <td style="text-align:left;">
-18.94 \[-40.95, 44\]
+18.82 \[-37.91, 44.66\]
 </td>
 <td style="text-align:left;">
-18.29 \[-47.46, 43.57\]
+17.94 \[-45.5, 43.99\]
 </td>
 <td style="text-align:left;">
-18.87 \[-42.01, 43.89\]
+18.7 \[-39.83, 44.44\]
 </td>
 <td style="text-align:left;">
-<b>19.35 \[-35.49, 43.89\]</b>
+<b>19.23 \[-34.35, 44.38\]</b>
 </td>
 <td style="text-align:left;">
-17.47 \[-7.5, 35.81\]
+18.54 \[-19.45, 40.74\]
 </td>
 </tr>
 <tr>
@@ -1034,25 +1032,25 @@ Cost- Minimising
 0.85
 </td>
 <td style="text-align:left;">
--23.02 \[-157.34, 41.78\]
+-24.36 \[-160.28, 41.66\]
 </td>
 <td style="text-align:left;">
-42.02 \[-1.88, 60.41\]
+41.48 \[-16.4, 60.84\]
 </td>
 <td style="text-align:left;">
-43.57 \[-17.04, 62.1\]
+42.42 \[-19.92, 62.25\]
 </td>
 <td style="text-align:left;">
-42.54 \[-18.59, 61.7\]
+41.99 \[-20.38, 61.57\]
 </td>
 <td style="text-align:left;">
-43.17 \[-17.15, 61.74\]
+42.74 \[-18.77, 61.87\]
 </td>
 <td style="text-align:left;">
-<b>44.17 \[-8.95, 62.46\]</b>
+43.21 \[-10.03, 62.31\]
 </td>
 <td style="text-align:left;">
-42.97 \[16.23, 59.11\]
+<b>43.65 \[7.66, 60.59\]</b>
 </td>
 </tr>
 <tr>
@@ -1063,22 +1061,22 @@ Cost- Minimising
 0.55
 </td>
 <td style="text-align:left;">
--242.87 \[-629.7, -63.56\]
+-242.94 \[-615.68, -67.52\]
 </td>
 <td style="text-align:left;">
--0.34 \[-5.69, 0.35\]
+-0.35 \[-5.92, 0.34\]
 </td>
 <td style="text-align:left;">
--107.34 \[-291.67, -23.35\]
+-107.9 \[-280.85, -24.06\]
 </td>
 <td style="text-align:left;">
--101.19 \[-328.57, -15.91\]
+-102.99 \[-324.63, -16.54\]
 </td>
 <td style="text-align:left;">
--106.92 \[-291.59, -23.33\]
+-107.9 \[-279.2, -24.06\]
 </td>
 <td style="text-align:left;">
--106.6 \[-290.75, -22.7\]
+-107.27 \[-278.72, -24.69\]
 </td>
 <td style="text-align:left;">
 <b>0 \[0, 0\]</b>
@@ -1092,25 +1090,25 @@ Cost- Minimising
 0.70
 </td>
 <td style="text-align:left;">
--245.64 \[-623.22, -66.09\]
+-247.55 \[-592.32, -65.59\]
 </td>
 <td style="text-align:left;">
-0.18 \[-56.15, 8.78\]
+-0.27 \[-68.26, 9.38\]
 </td>
 <td style="text-align:left;">
--65.68 \[-234.03, 3.53\]
+-66.61 \[-228.87, 3.65\]
 </td>
 <td style="text-align:left;">
--63.23 \[-268.58, 5.52\]
+-62.38 \[-266.98, 6.5\]
 </td>
 <td style="text-align:left;">
--65.07 \[-241.82, 3.72\]
+-65.34 \[-242.86, 4.66\]
 </td>
 <td style="text-align:left;">
--63.96 \[-217.75, 3.23\]
+-64.79 \[-212.71, 3.84\]
 </td>
 <td style="text-align:left;">
-<b>0.58 \[-15.3, 6.25\]</b>
+<b>0.55 \[-25.78, 7.37\]</b>
 </td>
 </tr>
 <tr>
@@ -1121,25 +1119,25 @@ Cost- Minimising
 0.85
 </td>
 <td style="text-align:left;">
--240.78 \[-615.1, -60.32\]
+-246.89 \[-610.1, -66.41\]
 </td>
 <td style="text-align:left;">
-17.48 \[-46.14, 34.54\]
+16.58 \[-63.19, 34.1\]
 </td>
 <td style="text-align:left;">
--13.43 \[-136.99, 34.07\]
+-16.26 \[-147.86, 33.29\]
 </td>
 <td style="text-align:left;">
--10.9 \[-159.74, 35.06\]
+-13.54 \[-168.03, 33.99\]
 </td>
 <td style="text-align:left;">
--12.15 \[-150.49, 34.67\]
+-15.19 \[-159.51, 34.09\]
 </td>
 <td style="text-align:left;">
--12.84 \[-133.4, 34.8\]
+-15.23 \[-134.31, 33.28\]
 </td>
 <td style="text-align:left;">
-<b>19.15 \[-4.82, 32.53\]</b>
+<b>18.8 \[-13.62, 33.77\]</b>
 </td>
 </tr>
 </tbody>
@@ -1246,19 +1244,19 @@ Cost- Minimising
 0.85
 </td>
 <td style="text-align:left;">
-0.03 \[0.01, 0.16\]
+0.03 \[0.01, 0.25\]
 </td>
 <td style="text-align:left;">
-0.02 \[0.01, 0.07\]
+0.01 \[0, 0.06\]
 </td>
 <td style="text-align:left;">
-0.02 \[0.01, 0.08\]
+0.01 \[0, 0.07\]
 </td>
 <td style="text-align:left;">
-0.02 \[0.01, 0.07\]
+0.01 \[0, 0.06\]
 </td>
 <td style="text-align:left;">
-0.02 \[0.01, 0.04\]
+0.01 \[0.01, 0.04\]
 </td>
 <td style="text-align:left;">
 0.03 \[0.03, 0.03\]
@@ -1275,16 +1273,16 @@ Cost- Minimising
 0.03 \[0.02, 0.03\]
 </td>
 <td style="text-align:left;">
-0.04 \[0.04, 0.04\]
+0.04 \[0.03, 0.04\]
 </td>
 <td style="text-align:left;">
 0.04 \[0.03, 0.04\]
 </td>
 <td style="text-align:left;">
-0.04 \[0.04, 0.04\]
+0.04 \[0.03, 0.04\]
 </td>
 <td style="text-align:left;">
-0.04 \[0.04, 0.04\]
+0.04 \[0.03, 0.04\]
 </td>
 <td style="text-align:left;">
 0.03 \[0.03, 0.03\]
@@ -1301,16 +1299,16 @@ Cost- Minimising
 0.03 \[0.02, 0.06\]
 </td>
 <td style="text-align:left;">
-0.05 \[0.03, 0.07\]
+0.04 \[0.02, 0.06\]
 </td>
 <td style="text-align:left;">
-0.04 \[0.03, 0.08\]
+0.04 \[0.02, 0.08\]
 </td>
 <td style="text-align:left;">
-0.05 \[0.03, 0.07\]
+0.04 \[0.02, 0.07\]
 </td>
 <td style="text-align:left;">
-0.04 \[0.03, 0.06\]
+0.04 \[0.02, 0.06\]
 </td>
 <td style="text-align:left;">
 0.03 \[0.03, 0.03\]
@@ -1327,16 +1325,16 @@ Cost- Minimising
 0.04 \[0.01, 0.16\]
 </td>
 <td style="text-align:left;">
-0.06 \[0.03, 0.2\]
+0.05 \[0.02, 0.19\]
 </td>
 <td style="text-align:left;">
-0.05 \[0.02, 0.22\]
+0.04 \[0.01, 0.21\]
 </td>
 <td style="text-align:left;">
-0.06 \[0.02, 0.21\]
+0.05 \[0.01, 0.2\]
 </td>
 <td style="text-align:left;">
-0.06 \[0.03, 0.14\]
+0.05 \[0.02, 0.13\]
 </td>
 <td style="text-align:left;">
 0.03 \[0.03, 0.03\]
@@ -1350,19 +1348,19 @@ Cost- Minimising
 0.55
 </td>
 <td style="text-align:left;">
-0.07 \[0.05, 0.09\]
+0.06 \[0.05, 0.09\]
 </td>
 <td style="text-align:left;">
-0.1 \[0.1, 0.11\]
+0.1 \[0.09, 0.11\]
 </td>
 <td style="text-align:left;">
 0.1 \[0.09, 0.12\]
 </td>
 <td style="text-align:left;">
-0.1 \[0.1, 0.11\]
+0.1 \[0.09, 0.11\]
 </td>
 <td style="text-align:left;">
-0.1 \[0.1, 0.11\]
+0.1 \[0.09, 0.11\]
 </td>
 <td style="text-align:left;">
 0.03 \[0.03, 0.03\]
@@ -1376,19 +1374,19 @@ Cost- Minimising
 0.70
 </td>
 <td style="text-align:left;">
-0.05 \[0.02, 0.09\]
+0.04 \[0.02, 0.08\]
 </td>
 <td style="text-align:left;">
-0.12 \[0.09, 0.18\]
+0.11 \[0.07, 0.17\]
 </td>
 <td style="text-align:left;">
-0.12 \[0.07, 0.22\]
+0.1 \[0.05, 0.2\]
 </td>
 <td style="text-align:left;">
-0.12 \[0.08, 0.19\]
+0.11 \[0.06, 0.18\]
 </td>
 <td style="text-align:left;">
-0.12 \[0.09, 0.16\]
+0.1 \[0.07, 0.15\]
 </td>
 <td style="text-align:left;">
 0.03 \[0.03, 0.03\]
@@ -1405,16 +1403,16 @@ Cost- Minimising
 0.04 \[0.01, 0.11\]
 </td>
 <td style="text-align:left;">
-0.13 \[0.08, 0.24\]
+0.11 \[0.06, 0.23\]
 </td>
 <td style="text-align:left;">
-0.13 \[0.06, 0.29\]
+0.11 \[0.04, 0.28\]
 </td>
 <td style="text-align:left;">
-0.13 \[0.06, 0.27\]
+0.11 \[0.05, 0.26\]
 </td>
 <td style="text-align:left;">
-0.13 \[0.08, 0.22\]
+0.11 \[0.06, 0.21\]
 </td>
 <td style="text-align:left;">
 0.03 \[0.03, 0.03\]
@@ -1476,51 +1474,22 @@ Cost- Minimising
 0.55
 </td>
 <td style="text-align:left;">
--4615.44 \[-7487.39, -2420.84\]
+-4623.1 \[-7594.12, -2268.19\]
 </td>
 <td style="text-align:left;">
 <b>0 \[0, 0\]</b>
 </td>
 <td style="text-align:left;">
--2087.34 \[-3486.81, -996.13\]
+-2081.63 \[-3574.01, -945.53\]
 </td>
 <td style="text-align:left;">
--2030.77 \[-4334.36, -581.38\]
+-2020.24 \[-4373.57, -590.08\]
 </td>
 <td style="text-align:left;">
--2080.48 \[-3501.57, -986.17\]
+-2074.33 \[-3561.08, -940.46\]
 </td>
 <td style="text-align:left;">
--2117.9 \[-3451.6, -1006.2\]
-</td>
-<td style="text-align:left;">
-<b>0 \[0, 0\]</b>
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-0.010
-</td>
-<td style="text-align:right;">
-0.70
-</td>
-<td style="text-align:left;">
--4569.82 \[-7623.74, -2392.13\]
-</td>
-<td style="text-align:left;">
-<b>0 \[-7.63, 0.75\]</b>
-</td>
-<td style="text-align:left;">
--1407.9 \[-2856.25, -275.69\]
-</td>
-<td style="text-align:left;">
--1422.81 \[-3587.2, -163.87\]
-</td>
-<td style="text-align:left;">
--1401.64 \[-3029.28, -263.68\]
-</td>
-<td style="text-align:left;">
--1471.23 \[-2743.43, -385.56\]
+-2116.13 \[-3503.59, -969.11\]
 </td>
 <td style="text-align:left;">
 <b>0 \[0, 0\]</b>
@@ -1531,28 +1500,57 @@ Cost- Minimising
 0.010
 </td>
 <td style="text-align:right;">
+0.70
+</td>
+<td style="text-align:left;">
+-4616.69 \[-7570.67, -2365.82\]
+</td>
+<td style="text-align:left;">
+<b>0 \[-7.2, 0\]</b>
+</td>
+<td style="text-align:left;">
+-1412.16 \[-2820.33, -281.78\]
+</td>
+<td style="text-align:left;">
+-1415.91 \[-3516.53, -168.37\]
+</td>
+<td style="text-align:left;">
+-1415.53 \[-2977.96, -251.93\]
+</td>
+<td style="text-align:left;">
+-1477.87 \[-2753.65, -340.32\]
+</td>
+<td style="text-align:left;">
+<b>0 \[0, 0\]</b>
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
 0.85
 </td>
 <td style="text-align:left;">
--4612.39 \[-7523.78, -2291.01\]
+-4583.71 \[-7466.05, -2345.28\]
 </td>
 <td style="text-align:left;">
-<b>0 \[-45.65, 116.07\]</b>
+<b>0 \[-36.02, 90.13\]</b>
 </td>
 <td style="text-align:left;">
--692.42 \[-2046.12, 495.31\]
+-652.12 \[-2107.69, 457.12\]
 </td>
 <td style="text-align:left;">
--748.35 \[-2567.06, 463.09\]
+-700.95 \[-2605.15, 436.32\]
 </td>
 <td style="text-align:left;">
--738.81 \[-2247.23, 477.24\]
+-693.05 \[-2326.28, 436.29\]
 </td>
 <td style="text-align:left;">
--730.38 \[-1981.76, 489.4\]
+-707.01 \[-1995.68, 477.73\]
 </td>
 <td style="text-align:left;">
-<b>0 \[-19.4, 81.67\]</b>
+<b>0 \[-14.55, 56.23\]</b>
 </td>
 </tr>
 <tr>
@@ -1563,22 +1561,22 @@ Cost- Minimising
 0.55
 </td>
 <td style="text-align:left;">
--4289.28 \[-7433.23, 273.15\]
+-4290.48 \[-7346.75, -26.12\]
 </td>
 <td style="text-align:left;">
-<b>0 \[-1.11, 0\]</b>
+<b>0 \[-1.03, 0\]</b>
 </td>
 <td style="text-align:left;">
--1921.98 \[-3482.53, 437.88\]
+-1923.62 \[-3411.43, 270.89\]
 </td>
 <td style="text-align:left;">
--1833.33 \[-4172.02, 391.19\]
+-1825.63 \[-4211.7, 261.45\]
 </td>
 <td style="text-align:left;">
--1915.11 \[-3489.29, 437.88\]
+-1922.78 \[-3417.62, 270.89\]
 </td>
 <td style="text-align:left;">
--1955.95 \[-3443.9, 437.89\]
+-1951.48 \[-3405.49, 299.6\]
 </td>
 <td style="text-align:left;">
 <b>0 \[0, 0\]</b>
@@ -1592,25 +1590,25 @@ Cost- Minimising
 0.70
 </td>
 <td style="text-align:left;">
--4306.53 \[-7291.83, -53.44\]
+-4260.48 \[-7320.42, 416.36\]
 </td>
 <td style="text-align:left;">
-<b>0 \[-31.29, 37.13\]</b>
+<b>0 \[-24.07, 25.11\]</b>
 </td>
 <td style="text-align:left;">
--1272.14 \[-2756.71, 1416.6\]
+-1243.78 \[-2767.4, 1558.89\]
 </td>
 <td style="text-align:left;">
--1245.97 \[-3453.16, 1364.71\]
+-1212.82 \[-3457.86, 1553.76\]
 </td>
 <td style="text-align:left;">
--1264.76 \[-2880.8, 1411.74\]
+-1233.36 \[-2915.04, 1558.77\]
 </td>
 <td style="text-align:left;">
--1334.24 \[-2682.23, 1416.15\]
+-1320.39 \[-2662.36, 1681.96\]
 </td>
 <td style="text-align:left;">
-<b>0 \[-2, 3.05\]</b>
+<b>0 \[-1.54, 1.33\]</b>
 </td>
 </tr>
 <tr>
@@ -1621,25 +1619,25 @@ Cost- Minimising
 0.85
 </td>
 <td style="text-align:left;">
--4248.57 \[-7362.38, -19.89\]
+-4248.23 \[-7347.53, -88.34\]
 </td>
 <td style="text-align:left;">
-<b>0 \[-140.03, 739.01\]</b>
+<b>0 \[-114.37, 554.47\]</b>
 </td>
 <td style="text-align:left;">
--566.65 \[-2074.23, 2388.71\]
+-524.45 \[-2042.98, 2295.34\]
 </td>
 <td style="text-align:left;">
--600.96 \[-2486.98, 2375.84\]
+-575.2 \[-2509.51, 2238.64\]
 </td>
 <td style="text-align:left;">
--592.64 \[-2294.39, 2384.99\]
+-559.01 \[-2229.5, 2320.03\]
 </td>
 <td style="text-align:left;">
--610.89 \[-1966.6, 2433.76\]
+-577.71 \[-1909.39, 2383.83\]
 </td>
 <td style="text-align:left;">
-<b>0 \[-79.76, 563.72\]</b>
+<b>0 \[-68.01, 400.43\]</b>
 </td>
 </tr>
 <tr>
@@ -1650,22 +1648,22 @@ Cost- Minimising
 0.55
 </td>
 <td style="text-align:left;">
--3331.3 \[-6938.47, 15256.6\]
+-3501.48 \[-6859.66, 16129.35\]
 </td>
 <td style="text-align:left;">
-<b>0 \[-7.95, 11.75\]</b>
+<b>0 \[-8.37, 10.39\]</b>
 </td>
 <td style="text-align:left;">
--1475.34 \[-3256.01, 8410.12\]
+-1552.11 \[-3245.17, 8826.46\]
 </td>
 <td style="text-align:left;">
--1258.72 \[-4037.63, 8584.33\]
+-1380.05 \[-3904.36, 8894.15\]
 </td>
 <td style="text-align:left;">
--1467.74 \[-3284.63, 8408.7\]
+-1549.44 \[-3277.62, 8747.87\]
 </td>
 <td style="text-align:left;">
--1511.98 \[-3261.83, 8470.24\]
+-1583.1 \[-3225.75, 8964.11\]
 </td>
 <td style="text-align:left;">
 <b>0 \[0, 0\]</b>
@@ -1679,25 +1677,25 @@ Cost- Minimising
 0.70
 </td>
 <td style="text-align:left;">
--3347.11 \[-7006.44, 15704.94\]
+-3442.81 \[-7002.28, 16807.74\]
 </td>
 <td style="text-align:left;">
-<b>0 \[-262.44, 1377.23\]</b>
+<b>0 \[-233.39, 1320.33\]</b>
 </td>
 <td style="text-align:left;">
--891.16 \[-2767.25, 11454.76\]
+-924.3 \[-2815.2, 11641.08\]
 </td>
 <td style="text-align:left;">
--785.79 \[-3324.72, 11453.78\]
+-816.4 \[-3370.6, 11870.13\]
 </td>
 <td style="text-align:left;">
--866.95 \[-2873.58, 11374.15\]
+-887.15 \[-2912.05, 11870.13\]
 </td>
 <td style="text-align:left;">
--951.33 \[-2698.67, 11677.66\]
+-1003.92 \[-2698.71, 11719.73\]
 </td>
 <td style="text-align:left;">
-<b>0 \[-116.76, 669.05\]</b>
+<b>0 \[-87.84, 531.8\]</b>
 </td>
 </tr>
 <tr>
@@ -1708,25 +1706,25 @@ Cost- Minimising
 0.85
 </td>
 <td style="text-align:left;">
--3384.09 \[-6965.12, 16311.93\]
+-3380.71 \[-6968.28, 16753.46\]
 </td>
 <td style="text-align:left;">
-30.26 \[-554.39, 6963.17\]
+27.57 \[-496.45, 5777.93\]
 </td>
 <td style="text-align:left;">
--404.75 \[-1990.46, 14634.44\]
+-411.02 \[-1990.98, 14566.43\]
 </td>
 <td style="text-align:left;">
--401.49 \[-2297.68, 14634.44\]
+-410.58 \[-2280.99, 14692.09\]
 </td>
 <td style="text-align:left;">
--401.79 \[-2120.46, 14660.18\]
+-408.44 \[-2134.12, 14567.33\]
 </td>
 <td style="text-align:left;">
--426.5 \[-1977.98, 14736.32\]
+-422.37 \[-1934.61, 14742.27\]
 </td>
 <td style="text-align:left;">
-<b>54.45 \[-409.89, 6315.58\]</b>
+<b>52.44 \[-366.72, 5548.12\]</b>
 </td>
 </tr>
 </tbody>
@@ -1807,7 +1805,7 @@ Cost- Minimising
 0.70
 </td>
 <td style="text-align:left;">
-1 \[0.07, 1\]
+1 \[0.06, 1\]
 </td>
 <td style="text-align:left;">
 0.01 \[0.01, 0.02\]
@@ -1833,19 +1831,19 @@ Cost- Minimising
 0.85
 </td>
 <td style="text-align:left;">
-0.64 \[0.13, 1\]
+1 \[0.12, 1\]
 </td>
 <td style="text-align:left;">
-0.02 \[0.01, 0.06\]
+0.01 \[0, 0.06\]
 </td>
 <td style="text-align:left;">
-0.02 \[0.01, 0.07\]
+0.01 \[0, 0.07\]
 </td>
 <td style="text-align:left;">
-0.02 \[0.01, 0.07\]
+0.01 \[0, 0.06\]
 </td>
 <td style="text-align:left;">
-0.02 \[0.01, 0.04\]
+0.01 \[0, 0.04\]
 </td>
 <td style="text-align:left;">
 0.47 \[0.47, 0.47\]
@@ -1885,13 +1883,13 @@ Cost- Minimising
 0.70
 </td>
 <td style="text-align:left;">
-1 \[0.1, 1\]
+1 \[0.09, 1\]
 </td>
 <td style="text-align:left;">
-0.03 \[0.02, 0.05\]
+0.03 \[0.02, 0.04\]
 </td>
 <td style="text-align:left;">
-0.03 \[0.02, 0.06\]
+0.03 \[0.01, 0.06\]
 </td>
 <td style="text-align:left;">
 0.03 \[0.02, 0.05\]
@@ -1911,19 +1909,19 @@ Cost- Minimising
 0.85
 </td>
 <td style="text-align:left;">
-0.48 \[0.16, 1\]
+0.51 \[0.15, 1\]
 </td>
 <td style="text-align:left;">
-0.04 \[0.02, 0.16\]
+0.03 \[0.01, 0.13\]
 </td>
 <td style="text-align:left;">
-0.04 \[0.01, 0.17\]
+0.03 \[0.01, 0.15\]
 </td>
 <td style="text-align:left;">
-0.04 \[0.02, 0.16\]
+0.03 \[0.01, 0.14\]
 </td>
 <td style="text-align:left;">
-0.04 \[0.02, 0.1\]
+0.03 \[0.01, 0.09\]
 </td>
 <td style="text-align:left;">
 0.47 \[0.47, 0.47\]
@@ -1937,19 +1935,19 @@ Cost- Minimising
 0.55
 </td>
 <td style="text-align:left;">
-1 \[0.14, 1\]
+1 \[0.13, 1\]
 </td>
 <td style="text-align:left;">
-0.1 \[0.1, 0.11\]
+0.1 \[0.09, 0.11\]
 </td>
 <td style="text-align:left;">
 0.1 \[0.09, 0.12\]
 </td>
 <td style="text-align:left;">
-0.1 \[0.1, 0.11\]
+0.1 \[0.09, 0.11\]
 </td>
 <td style="text-align:left;">
-0.1 \[0.1, 0.11\]
+0.1 \[0.09, 0.11\]
 </td>
 <td style="text-align:left;">
 0.47 \[0.47, 0.47\]
@@ -1963,19 +1961,19 @@ Cost- Minimising
 0.70
 </td>
 <td style="text-align:left;">
-0.41 \[0.22, 1\]
+0.42 \[0.2, 1\]
 </td>
 <td style="text-align:left;">
-0.12 \[0.09, 0.18\]
+0.11 \[0.07, 0.17\]
 </td>
 <td style="text-align:left;">
-0.12 \[0.07, 0.21\]
+0.1 \[0.05, 0.2\]
 </td>
 <td style="text-align:left;">
-0.12 \[0.08, 0.19\]
+0.11 \[0.06, 0.18\]
 </td>
 <td style="text-align:left;">
-0.12 \[0.09, 0.16\]
+0.1 \[0.07, 0.16\]
 </td>
 <td style="text-align:left;">
 0.47 \[0.47, 0.47\]
@@ -1989,19 +1987,19 @@ Cost- Minimising
 0.85
 </td>
 <td style="text-align:left;">
-0.46 \[0.26, 0.78\]
+0.45 \[0.26, 1\]
 </td>
 <td style="text-align:left;">
-0.13 \[0.08, 0.24\]
+0.11 \[0.06, 0.23\]
 </td>
 <td style="text-align:left;">
-0.13 \[0.05, 0.3\]
+0.11 \[0.04, 0.27\]
 </td>
 <td style="text-align:left;">
-0.13 \[0.06, 0.26\]
+0.11 \[0.05, 0.25\]
 </td>
 <td style="text-align:left;">
-0.13 \[0.08, 0.22\]
+0.11 \[0.06, 0.21\]
 </td>
 <td style="text-align:left;">
 0.47 \[0.47, 0.47\]

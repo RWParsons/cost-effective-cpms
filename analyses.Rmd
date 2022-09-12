@@ -23,8 +23,8 @@ source("src/utils.R")
 source("src/cutpoint_methods.R")
 source("src/summary.R")
 
-do_new_analyses <- FALSE
-save_plots <- FALSE
+do_new_analyses <- TRUE
+save_plots <- TRUE
 ```
 
 

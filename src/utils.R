@@ -27,7 +27,7 @@ get_sample <- function(auc, n_samples, prevalence, min_events = 0) {
   x <- c(stats::rnorm(n_neg, mean = 0), stats::rnorm(n_pos, mean = d))
   y <- c(rep(0, n_neg), rep(1, n_pos))
 
-  return(data.frame(x = x, actual = y))
+  return(data.frame(predicted = x, actual = y))
 }
 
 # Beta distribution-related functions for simulating clinical prediction models
