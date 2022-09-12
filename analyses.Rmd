@@ -218,7 +218,6 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
         ) %>%
         ungroup()
 
-      # p_calibration <- p_calibration + geom_pointrange(data=df_calplot, aes(x=bin_pred, y=bin_prob, ymin=ll, ymax=ul), alpha=0.2)
       p_calibration <- p_calibration + geom_line(data = df_calplot, aes(x = bin_pred, y = bin_prob), alpha = 0.2)
       p_calibration <- p_calibration + geom_point(data = df_calplot, aes(x = bin_pred, y = bin_prob), alpha = 0.2)
     }
@@ -268,7 +267,6 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     date_time = Sys.time(),
     df_result = df_result,
     df_thresholds = df_thresholds,
-    # calibration_plot=p_calibration,
     meta_data = list(
       sample_size = sample_size,
       n_sims = n_sims,
@@ -303,10 +301,6 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 #   plot_type = "histogram",
 #   scale=1
 # )
-
-
-# x$df_result %>%
-#   plot_fw_histogram(hdi=F, plot_labels=labs(x="Net Monetary Benefit (AUD)\n", y=""))
 ```
 
 
@@ -577,7 +571,9 @@ do.call(
   c(
     falls_simulation$meta_data,
     list(
-      data = select(falls_simulation$df_result, -cost_minimising), agg_fx = median, hdi = F, ci = 0.95,
+      # data = select(falls_simulation$df_result, -cost_minimising),
+      data = falls_simulation$df_result,
+      agg_fx = median, hdi = F, ci = 0.95,
       recode_methods_vector = cols_rename, inb_ref_col = "treat_all"
     )
   )
@@ -711,23 +707,23 @@ ll_icu <- readRDS("output/sensitivity_analyses/icu_sensitivity_analyses.rds")
 
 ```{r}
 
-falls_inb_plots <- get_plot_list(
-  ll_falls, cols_rename,
-  get_what = "inb",
-  inb_ref_col = "Treat All", groups_remove = "Cost- Minimising"
-)
-
-falls_cp_plots <- get_plot_list(ll_falls, cols_rename, get_what = "cutpoints")
-
-plot_grid(
-  plotlist = c(falls_inb_plots, falls_cp_plots),
-  nrow = 2,
-  labels = rep(g_falls$event_rate, 2)
-)
-
-if (save_plots) {
-  ggsave(filename = "output/sensitivity_analyses/falls_simulations_inb_for-deliverables_sanity-check.jpeg", height = 10, width = 45)
-}
+# falls_inb_plots <- get_plot_list(
+#   ll_falls, cols_rename,
+#   get_what = "inb",
+#   inb_ref_col = "Treat All", groups_remove = "Cost- Minimising"
+# )
+# 
+# falls_cp_plots <- get_plot_list(ll_falls, cols_rename, get_what = "cutpoints")
+# 
+# plot_grid(
+#   plotlist = c(falls_inb_plots, falls_cp_plots),
+#   nrow = 2,
+#   labels = rep(g_falls$event_rate, 2)
+# )
+# 
+# if (save_plots) {
+#   ggsave(filename = "output/sensitivity_analyses/falls_simulations_inb_for-deliverables_sanity-check.jpeg", height = 10, width = 45)
+# }
 ```
 
 
@@ -744,7 +740,8 @@ falls_axis_limits <- c(
 falls_inb_plots <- get_plot_list(
   ll_falls, cols_rename,
   get_what = "inb", inb_ref_col = "Treat All",
-  groups_remove = "Cost- Minimising", only_show_interval = F,
+  # groups_remove = "Cost- Minimising", 
+  only_show_interval = F,
   x_lims_list = falls_axis_limits
 )
 
@@ -794,7 +791,8 @@ icu_axis_limits <- c(
 icu_inb_plots <- get_plot_list(
   ll_icu, cols_rename, 
   get_what = "inb", inb_ref_col = "Treat None",
-  groups_remove = "Cost- Minimising", only_show_interval = F,
+  # groups_remove = "Cost- Minimising", 
+  only_show_interval = F,
   x_lims_list = icu_axis_limits
 )
 
