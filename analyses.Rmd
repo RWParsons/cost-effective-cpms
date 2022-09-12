@@ -23,8 +23,8 @@ source("src/utils.R")
 source("src/cutpoint_methods.R")
 source("src/summary.R")
 
-do_new_analyses <- TRUE
-save_plots <- TRUE
+do_new_analyses <- FALSE
+save_plots <- FALSE
 ```
 
 
@@ -303,49 +303,32 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 # )
 ```
 
+# (mis)calibration experiment
 
+## do simulations
 ```{r}
-cfg <- list(
+cfg_falls <- list(
   n_sim = 500,
   n_valid = 10000,
   sim_auc = 0.7,
   event_rate = 0.036
 )
-if (do_new_analyses | !file.exists("output/calibration_experiment/calibration_simulations.rds")) {
-  x_calibrated <-
+if (do_new_analyses | !file.exists("output/calibration_experiment/calibration_simulations-falls.rds")) {
+  
+  f_do_sim_calibration_falls <- function(intercept_adjustment) {
     do_simulation(
-      n_sims = cfg$n_sim, n_valid = cfg$n_valid, sim_auc = cfg$sim_auc, event_rate = cfg$event_rate,
+      n_sims = cfg_falls$n_sim, n_valid = cfg_falls$n_valid, 
+      sim_auc = cfg_falls$sim_auc, event_rate = cfg_falls$event_rate,
       fx_costs_training = get_nmb_est, fx_costs_evaluation = get_nmb,
-      intercept_adjustment = 0, return_calibration_plot = T
+      intercept_adjustment = intercept_adjustment, return_calibration_plot = T
     )
-
-  x_adjusted_up <-
-    do_simulation(
-      n_sims = cfg$n_sim, n_valid = cfg$n_valid, sim_auc = cfg$sim_auc, event_rate = cfg$event_rate,
-      fx_costs_training = get_nmb_est, fx_costs_evaluation = get_nmb,
-      intercept_adjustment = 1, return_calibration_plot = T
-    )
-
-  x_adjusted_down <-
-    do_simulation(
-      n_sims = cfg$n_sim, n_valid = cfg$n_valid, sim_auc = cfg$sim_auc, event_rate = cfg$event_rate,
-      fx_costs_training = get_nmb_est, fx_costs_evaluation = get_nmb,
-      intercept_adjustment = -1, return_calibration_plot = T
-    )
-
-  x_adjusted_up2 <-
-    do_simulation(
-      n_sims = cfg$n_sim, n_valid = cfg$n_valid, sim_auc = cfg$sim_auc, event_rate = cfg$event_rate,
-      fx_costs_training = get_nmb_est, fx_costs_evaluation = get_nmb,
-      intercept_adjustment = 2, return_calibration_plot = T
-    )
-
-  x_adjusted_down2 <-
-    do_simulation(
-      n_sims = cfg$n_sim, n_valid = cfg$n_valid, sim_auc = cfg$sim_auc, event_rate = cfg$event_rate,
-      fx_costs_training = get_nmb_est, fx_costs_evaluation = get_nmb,
-      intercept_adjustment = -2, return_calibration_plot = T
-    )
+  }
+  
+  x_calibrated <- f_do_sim_calibration_falls(0)
+  x_adjusted_up <- f_do_sim_calibration_falls(1)
+  x_adjusted_down <- f_do_sim_calibration_falls(-1)
+  x_adjusted_up2 <- f_do_sim_calibration_falls(2)
+  x_adjusted_down2 <- f_do_sim_calibration_falls(-2)
 
   calibration_experiment_list <- list(
     up2 = x_adjusted_up2,
@@ -355,10 +338,49 @@ if (do_new_analyses | !file.exists("output/calibration_experiment/calibration_si
     down2 = x_adjusted_down2
   )
 
-  saveRDS(calibration_experiment_list, "output/calibration_experiment/calibration_simulations.rds")
+  saveRDS(calibration_experiment_list, "output/calibration_experiment/calibration_simulations-falls.rds")
 }
 
-calibration_experiment_list <- readRDS("output/calibration_experiment/calibration_simulations.rds")
+cfg_icu <- list(
+  n_sim = 500,
+  n_valid = 10000,
+  sim_auc = 0.7,
+  event_rate = 0.025
+)
+
+if (do_new_analyses | !file.exists("output/calibration_experiment/calibration_simulations-icu.rds")) {
+  
+  f_do_sim_calibration_icu <- function(intercept_adjustment) {
+    do_simulation(
+      n_sims = cfg_icu$n_sim, n_valid = cfg_icu$n_valid, 
+      sim_auc = cfg_icu$sim_auc, event_rate = cfg_icu$event_rate,
+      fx_costs_training = get_nmb_est_ICU, fx_costs_evaluation = get_nmb_ICU,
+      intercept_adjustment = intercept_adjustment, return_calibration_plot = T
+    )
+  }
+  
+  x_calibrated <- f_do_sim_calibration_icu(0)
+  x_adjusted_up <- f_do_sim_calibration_icu(1)
+  x_adjusted_down <- f_do_sim_calibration_icu(-1)
+  x_adjusted_up2 <- f_do_sim_calibration_icu(2)
+  x_adjusted_down2 <- f_do_sim_calibration_icu(-2)
+
+  calibration_experiment_list <- list(
+    up2 = x_adjusted_up2,
+    up1 = x_adjusted_up,
+    calibrated = x_calibrated,
+    down1 = x_adjusted_down,
+    down2 = x_adjusted_down2
+  )
+
+  saveRDS(calibration_experiment_list, "output/calibration_experiment/calibration_simulations-icu.rds")
+}
+
+
+```
+
+## make plots
+```{r}
 
 cols_rename <- c(
   "Treat All" = "treat_all",
@@ -371,22 +393,24 @@ cols_rename <- c(
   "Cost- Minimising" = "cost_minimising"
 )
 
+calibration_experiment_falls <- readRDS("output/calibration_experiment/calibration_simulations-falls.rds")
 
-inb_plots <- get_plot_list(
-  out_list = calibration_experiment_list,
+inb_plots_falls <- get_plot_list(
+  out_list = calibration_experiment_falls,
   rename_vector = cols_rename,
   inb_ref_col = "Treat All",
+  groups_remove = c("Treat None", "Closest to (0, 1)", "Youden", "Sens-Spec product", "Index of Union"),
   get_what = "inb",
   agg_line_size = 1
   # extra_theme=theme(panel.spacing  = unit(0, "lines")) # comment this line out to keep default spacing between facets
 )
 
-calibration_plots <- get_plot_list(
-  out_list = calibration_experiment_list,
+calibration_plots_falls <- get_plot_list(
+  out_list = calibration_experiment_falls,
   get_what = "calibration"
 )
 
-inb_plots <- keep_only_first_plot_strip(inb_plots)
+inb_plots_falls <- keep_only_first_plot_strip(inb_plots_falls)
 
 # test the ggplot below to find the extra rel-height for the first plot (with strips)
 # ggsave(
@@ -395,23 +419,64 @@ inb_plots <- keep_only_first_plot_strip(inb_plots)
 #   height=10.5, width=14)
 # inb_cowplot <- cowplot::plot_grid(plotlist=inb_plots, ncol=1)
 
-inb_cowplot <- cowplot::plot_grid(plotlist = inb_plots, ncol = 1, rel_heights = c(0.375, rep(0.3, length(inb_plots) - 1)))
+inb_cowplot_falls <- cowplot::plot_grid(plotlist = inb_plots_falls, ncol = 1, rel_heights = c(0.375, rep(0.3, length(inb_plots_falls) - 1)))
 
 
 # cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
 
-calibration_cowplot <- plot_grid(
-  plotlist = c(list(NULL), calibration_plots),
+calibration_cowplot_falls <- plot_grid(
+  plotlist = c(list(NULL), calibration_plots_falls),
   ncol = 1,
-  rel_heights = c(0.075, rep(0.3, length(calibration_plots)))
+  rel_heights = c(0.075, rep(0.3, length(calibration_plots_falls)))
 )
 
 # calibration_cowplot <- plot_grid(plotlist=calibration_plots, ncol=1)
-combined_fig <- plot_grid(inb_cowplot, calibration_cowplot, ncol = 2, rel_widths = c(0.6, 0.25))
+combined_fig_falls <- plot_grid(inb_cowplot_falls, calibration_cowplot_falls, ncol = 2, rel_widths = c(0.4, 0.25))
 
 if (save_plots) {
-  ggsave(filename = "output/calibration_experiment/calibration_plots.jpeg", plot = combined_fig, dpi = 600, height = 8, width = 7.3)
+  ggsave(filename = "output/calibration_experiment/calibration_plots-falls.jpeg", plot = combined_fig_falls, dpi = 600, height = 8, width = 6)
 }
+
+
+calibration_experiment_icu <- readRDS("output/calibration_experiment/calibration_simulations-icu.rds")
+
+inb_plots_icu <- get_plot_list(
+  out_list = calibration_experiment_icu,
+  rename_vector = cols_rename,
+  inb_ref_col = "Treat All",
+  groups_remove = c("Treat None", "Closest to (0, 1)", "Youden", "Sens-Spec product", "Index of Union"),
+  get_what = "inb",
+  agg_line_size = 1
+)
+
+calibration_plots_icu <- get_plot_list(
+  out_list = calibration_experiment_icu,
+  get_what = "calibration"
+)
+
+calibration_plots_icu <- get_plot_list(
+  out_list = calibration_experiment_icu,
+  get_what = "cutpoints"
+)
+
+inb_plots_icu <- keep_only_first_plot_strip(inb_plots_icu)
+
+inb_cowplot_icu <- cowplot::plot_grid(plotlist = inb_plots_icu, ncol = 1, rel_heights = c(0.375, rep(0.3, length(inb_plots_icu) - 1)))
+
+
+
+calibration_cowplot_icu <- plot_grid(
+  plotlist = c(list(NULL), calibration_plots_icu),
+  ncol = 1,
+  rel_heights = c(0.075, rep(0.3, length(calibration_plots_icu)))
+)
+
+combined_fig_icu <- plot_grid(inb_cowplot_icu, calibration_cowplot_icu, ncol = 2, rel_widths = c(0.4, 0.25))
+combined_fig_icu
+if (save_plots) {
+  ggsave(filename = "output/calibration_experiment/calibration_plots-icu.jpeg", plot = combined_fig_icu, dpi = 600, height = 8, width = 6)
+}
+
 ```
 
 # Primary analyses
