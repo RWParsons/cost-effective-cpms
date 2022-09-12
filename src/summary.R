@@ -384,6 +384,12 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, dollar_forma
     fill_cols <- c("grey50", "grey50", "#ADD8E6")
   }
 
+  if(dollar_format) {
+    x_labels <- scales::dollar_format()
+  } else {
+    x_labels <- waiver()
+  }
+
   p <-
     p_data %>%
     ggplot(aes(value, fill=in_interval)) +
@@ -395,11 +401,7 @@ plot_fw_histogram <- function(data, inb_ref_col=NA, ci=0.95, hdi=F, dollar_forma
     guides(fill="none") +
     scale_y_continuous(n.breaks=n_breaks) +
     plot_labels +
-    scale_x_continuous(limits = x_lims)
-
-  if(dollar_format){
-    p <- p + scale_x_continuous(labels=scales::dollar_format())
-  }
+    scale_x_continuous(limits = x_lims, labels = x_labels)
 
   my_plot_innards <- ggplot_build(p)
 
@@ -473,7 +475,7 @@ get_plot_list <- function(out_list,
     p <- plot_fw_histogram(
       data=select(results, -any_of(groups_remove)),
       inb_ref_col=inb_ref_col,
-      dollar_format = (get_what=="cutpoints"),
+      dollar_format = (get_what!="cutpoints"),
       x_lims = unlist(x_lims_list[[i]]),
       ...
     )
