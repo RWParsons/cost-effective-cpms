@@ -178,9 +178,8 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
     )
     sample_size <- pmsamp$sample_size
     min_events <- pmsamp$events
-    check_events <- TRUE
   } else {
-    check_events <- FALSE
+    min_events <- round(sample_size * prevalence)
   }
   if (return_calibration_plot) {
     p_calibration <- ggplot() +
@@ -189,16 +188,8 @@ do_simulation <- function(sample_size, n_sims, n_valid, sim_auc, event_rate,
 
   i <- 0
   while (i < n_sims) {
-    train_sample <- get_sample(auc = sim_auc, n_samples = sample_size, prevalence = event_rate)
-    valid_sample <- get_sample(auc = sim_auc, n_samples = n_valid, prevalence = event_rate)
-    if (length(unique(train_sample$actual)) != 2 | length(unique(valid_sample$actual)) != 2) {
-      next
-    }
-    if (check_events) {
-      if (sum(train_sample$actual) < min_events) {
-        next
-      }
-    }
+    train_sample <- get_sample(auc = sim_auc, n_samples = sample_size, prevalence = event_rate, min_events = min_events)
+    valid_sample <- get_sample(auc = sim_auc, n_samples = n_valid, prevalence = event_rate, min_events = 0)
     i <- i + 1
     model <- glm(actual ~ predicted, data = train_sample, family = binomial())
 
