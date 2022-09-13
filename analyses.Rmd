@@ -535,7 +535,7 @@ icu_simulation <- readRDS("output/primary_analyses/icu_primary_analyses.rds")
 cols_rename <- c(
   "Treat All" = "treat_all",
   "Treat None" = "treat_none",
-  "Cost- effective" = "cost_effective",
+  "Value- Optimising" = "cost_effective",
   "Closest to (0, 1)" = "er",
   "Youden" = "youden",
   "Sens-Spec product" = "cz",
