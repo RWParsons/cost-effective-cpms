@@ -13,9 +13,29 @@ get_medians <- function(x, nboot=500){
   list(median=m, median_se=sd(boots))
 }
 
-summarize_sims <- function(x, prob, hdi, agg_fx, interval_in_text=F) {
-  r <- function(x) round(x, digits=2)
+r <- function(x) {
+  digits <- 2
+  x <- round(x, digits=digits)
+  if (x == 0) {
+    return("0")
+  }
 
+  if(as.integer(x) == x){
+    return(
+      paste(x, paste0(rep.int(0, times=digits), collapse = ""), sep=".")
+    )
+  }
+
+  x <- as.character(x)
+  n_decimals <- nchar(str_split(x, "\\.")[[1]][2])
+
+  if(n_decimals < digits) {
+    x <- paste0(x, paste0(rep.int(0, times=digits - n_decimals), collapse = ""))
+  }
+  return(x)
+}
+
+summarize_sims <- function(x, prob, hdi, agg_fx, interval_in_text=F) {
   if(hdi){
     hdi <- hdi(x, ci=prob)
     res <- glue::glue(

@@ -636,16 +636,17 @@ icu_summary <- do.call(
 # primary_analyses_table
 primary_analyses_table <-
   rbind(icu_summary, falls_summary) %>%
-  select(
-    "Cutpoint method" = method,
-    "Incremental Net Monetary Benefit (AUD)" = summary,
-    "Best performing [n (%)]" = n_best_percent
-  ) %>%
+  select(method, summary, n_best_percent) %>%
+  {\(d){
+    names(d) <- c(
+      "Cutpoint method",
+      glue::glue("Incremental Net Monetary Benefit (median [{percent(0.95, digits=0)} Intervals])"),
+      "Best performing [n (%)]"
+    )
+    return(d)
+  }}() %>%
   formattable() %>%
-  kable(
-    escape = F,
-    caption = glue::glue("Incremental Net Monetary Benefit presented as median [{percent(0.95, digits=0)} Intervals]")
-  ) %>%
+  kable(escape = F) %>%
   pack_rows(
     index = c(
       "ICU readmission (reference group: Treat None)" = nrow(icu_summary),
@@ -655,6 +656,11 @@ primary_analyses_table <-
   kable_styling() %>%
   save_kable(file = "output/primary_analyses/primary_analyses.html")
 
+```
+
+
+  
+```{r, eval=F}
 
 # primary analyses for deliverable (falls only and remove cost-minimising cutpoint method)
 do.call(
