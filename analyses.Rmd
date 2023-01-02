@@ -24,7 +24,7 @@ source("src/cutpoint_methods.R")
 source("src/summary.R")
 
 do_new_analyses <- FALSE
-save_plots <- FALSE
+save_plots <- TRUE
 ```
 
 
@@ -64,8 +64,8 @@ get_nmb <- function() {
 
   c(
     "TN" = 0,
-    "FN" = -falls_cost - fall_eff * WTP,
-    "TP" = -falls_cost * (1 - treatment_effect) - treatment_cost - fall_eff * WTP,
+    "FN" = -(falls_cost + fall_eff * WTP),
+    "TP" = -(falls_cost + WTP * fall_eff) * (1 - treatment_effect) - treatment_cost,
     "FP" = -treatment_cost
   )
 }
@@ -90,11 +90,12 @@ get_nmb_est <- function() {
 
   c(
     "TN" = 0,
-    "FN" = -falls_cost - fall_eff * WTP,
-    "TP" = -falls_cost * (1 - treatment_effect) - treatment_cost - fall_eff * WTP,
+    "FN" = -(falls_cost + fall_eff * WTP),
+    "TP" = -(falls_cost + WTP * fall_eff) * (1 - treatment_effect) - treatment_cost,
     "FP" = -treatment_cost
   )
 }
+get_nmb_est()
 ```
 
 
@@ -437,9 +438,16 @@ inb_cowplot_falls <- plot_grid(plotlist = inb_plots_falls, ncol = 1, rel_heights
 
 
 # cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
-
+empty_space <- ggplot() + theme_bw() +
+  theme(
+    axis.line = element_line(colour = "white"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  )
 calibration_cowplot_falls <- plot_grid(
-  plotlist = c(list(NULL), calibration_plots_falls),
+  plotlist = c(list(empty_space), calibration_plots_falls),
   ncol = 1,
   rel_heights = c(0.075, rep(0.3, length(calibration_plots_falls)))
 )
@@ -475,7 +483,7 @@ inb_plots_icu <- keep_only_first_plot_strip(inb_plots_icu)
 inb_cowplot_icu <- plot_grid(plotlist = inb_plots_icu, ncol = 1, rel_heights = c(0.375, rep(0.3, length(inb_plots_icu) - 1)))
 
 calibration_cowplot_icu <- plot_grid(
-  plotlist = c(list(NULL), calibration_plots_icu),
+  plotlist = c(list(empty_space), calibration_plots_icu),
   ncol = 1,
   rel_heights = c(0.075, rep(0.3, length(calibration_plots_icu)))
 )
