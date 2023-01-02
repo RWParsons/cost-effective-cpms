@@ -661,8 +661,9 @@ primary_analyses_table <-
       "Inpatient falls (reference group: Treat All)" = nrow(falls_summary)
     )
   ) %>%
-  kable_styling() %>%
-  save_kable(file = "output/primary_analyses/primary_analyses.html")
+  kable_styling()
+
+save_kable(primary_analyses_table, file = "output/primary_analyses/primary_analyses.html")
 
 ```
 
