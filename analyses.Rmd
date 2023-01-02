@@ -979,4 +979,54 @@ make_table(
 )
 ```
 
+# bonus figure with similar graphic to shiny app
+```{r}
+example_cfg <- list(
+  auc = 0.85,
+  event_rate = 0.1,
+  sample_size = 1000,
+  min_events = 0.1*1000
+)
+
+train_data <- get_sample(
+  auc = example_cfg$auc, 
+  n_samples = example_cfg$sample_size, 
+  prevalence = example_cfg$event_rate, 
+  min_events = example_cfg$min_events
+)
+
+model <- glm(actual ~ predicted, data = train_data, family = binomial())
+
+train_data$preds_proba <- predict(model, type="response")
+
+thresholds_df <- predictNMB::get_thresholds(
+  predicted=train_data$preds_proba, 
+  actual = train_data$actual,
+  nmb = get_nmb_est()
+) %>%
+  as.data.frame() %>%
+  rename("value" = 1) %>%
+  rownames_to_column("method") %>%
+  filter(method %in% c("all", "none", "value_optimising", "roc01", "youden"))
+
+thresholds_df
+
+plot_data <- 
+  train_data %>%
+  mutate(actual = as.factor(actual)) 
+
+ggplot() + 
+  geom_histogram(
+    data = plot_data, 
+    aes(x=preds_proba, fill=actual), 
+    alpha=0.7, 
+    position="identity"
+  ) +
+  geom_vline(
+    data = thresholds_df,
+    aes(xintercept = value, colour = method)
+  ) +
+  theme_bw()
+
+```
 
