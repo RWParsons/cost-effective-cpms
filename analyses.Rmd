@@ -1185,7 +1185,8 @@ p_combined <- plot_grid(
   example_plot_1 + theme(legend.position = "none", aspect.ratio = 1),
   example_plot_2,
   nrow = 1,
-  rel_widths = c(0.15, 0.5, 0.5)
+  rel_widths = c(0.15, 0.5, 0.5),
+  labels = c(NA, "A", "B")
 )
 
 if (save_plots) {
