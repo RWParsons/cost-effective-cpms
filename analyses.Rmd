@@ -1155,7 +1155,8 @@ example_plot_2 <-
   geom_point(
     data = proc_df2,
     aes(sensitivity, specificity),
-    size = 1
+    size = 1,
+    shape = 15
   ) +
   geom_point(
     data = thresholds_df,
