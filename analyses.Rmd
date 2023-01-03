@@ -315,17 +315,16 @@ cfg_falls <- list(
   event_rate = 0.036
 )
 if (do_new_analyses | !file.exists("output/calibration_experiment/calibration_simulations-falls.rds")) {
-  
   f_do_sim_calibration_falls <- function(intercept_adjustment, seed) {
     do_simulation(
-      n_sims = cfg_falls$n_sim, n_valid = cfg_falls$n_valid, 
+      n_sims = cfg_falls$n_sim, n_valid = cfg_falls$n_valid,
       sim_auc = cfg_falls$sim_auc, event_rate = cfg_falls$event_rate,
       fx_costs_training = get_nmb_est, fx_costs_evaluation = get_nmb,
       intercept_adjustment = intercept_adjustment, return_calibration_plot = T,
       seed = seed
     )
   }
-  
+
   x_calibrated <- f_do_sim_calibration_falls(0, 1)
   x_adjusted_up <- f_do_sim_calibration_falls(1, 2)
   x_adjusted_down <- f_do_sim_calibration_falls(-1, 3)
@@ -351,17 +350,16 @@ cfg_icu <- list(
 )
 
 if (do_new_analyses | !file.exists("output/calibration_experiment/calibration_simulations-icu.rds")) {
-  
   f_do_sim_calibration_icu <- function(intercept_adjustment, seed) {
     do_simulation(
-      n_sims = cfg_icu$n_sim, n_valid = cfg_icu$n_valid, 
+      n_sims = cfg_icu$n_sim, n_valid = cfg_icu$n_valid,
       sim_auc = cfg_icu$sim_auc, event_rate = cfg_icu$event_rate,
       fx_costs_training = get_nmb_est_ICU, fx_costs_evaluation = get_nmb_ICU,
       intercept_adjustment = intercept_adjustment, return_calibration_plot = T,
       seed = seed
     )
   }
-  
+
   x_calibrated <- f_do_sim_calibration_icu(0, 1)
   x_adjusted_up <- f_do_sim_calibration_icu(1, 2)
   x_adjusted_down <- f_do_sim_calibration_icu(-1, 3)
@@ -378,8 +376,6 @@ if (do_new_analyses | !file.exists("output/calibration_experiment/calibration_si
 
   saveRDS(calibration_experiment_list, "output/calibration_experiment/calibration_simulations-icu.rds")
 }
-
-
 ```
 
 ## make plots
@@ -399,7 +395,7 @@ cols_rename <- c(
 
 exclude_groups <- TRUE
 # save_plots <- TRUE
-if(exclude_groups) {
+if (exclude_groups) {
   groups_remove <- c("Treat None", "Closest to (0, 1)", "Youden", "Sens-Spec product", "Index of Union")
   rel_widths_inb_and_calibration_plots <- c(0.4, 0.25)
   final_plot_width <- 6
@@ -438,7 +434,8 @@ inb_cowplot_falls <- plot_grid(plotlist = inb_plots_falls, ncol = 1, rel_heights
 
 
 # cowplot::plot_grid(plotlist=calibration_plots, ncol=1)
-empty_space <- ggplot() + theme_bw() +
+empty_space <- ggplot() +
+  theme_bw() +
   theme(
     axis.line = element_line(colour = "white"),
     panel.grid.major = element_blank(),
@@ -493,13 +490,12 @@ combined_fig_icu
 if (save_plots) {
   ggsave(filename = glue::glue("output/calibration_experiment/calibration_plots-icu_{plot_suffix}.jpeg"), plot = combined_fig_icu, dpi = 600, height = 8, width = final_plot_width)
 }
-
 ```
 
 ## combine the two case studies for main-doc figure
 ```{r}
 combined_icu_and_falls_plot <- plot_grid(
-  combined_fig_icu, combined_fig_falls, 
+  combined_fig_icu, combined_fig_falls,
   rel_widths = c(0.5, 0.5),
   labels = c("A", "B")
 )
@@ -510,7 +506,6 @@ if (save_plots) {
     plot = combined_icu_and_falls_plot, dpi = 600, height = 8, width = 10
   )
 }
-
 ```
 
 # Primary analyses
@@ -645,14 +640,16 @@ icu_summary <- do.call(
 primary_analyses_table <-
   rbind(icu_summary, falls_summary) %>%
   select(method, summary, n_best_percent) %>%
-  {\(d){
-    names(d) <- c(
-      "Cutpoint method",
-      glue::glue("Incremental Net Monetary Benefit (median [{percent(0.95, digits=0)} Intervals])"),
-      "Best performing [n (%)]"
-    )
-    return(d)
-  }}() %>%
+  {
+    \(d){
+      names(d) <- c(
+        "Cutpoint method",
+        glue::glue("Incremental Net Monetary Benefit (median [{percent(0.95, digits=0)} Intervals])"),
+        "Best performing [n (%)]"
+      )
+      return(d)
+    }
+  }() %>%
   formattable() %>%
   kable(escape = F) %>%
   pack_rows(
@@ -664,7 +661,6 @@ primary_analyses_table <-
   kable_styling()
 
 save_kable(primary_analyses_table, file = "output/primary_analyses/primary_analyses.html")
-
 ```
 
 
@@ -818,15 +814,15 @@ ll_icu <- readRDS("output/sensitivity_analyses/icu_sensitivity_analyses.rds")
 #   get_what = "inb",
 #   inb_ref_col = "Treat All", groups_remove = "Cost- Minimising"
 # )
-# 
+#
 # falls_cp_plots <- get_plot_list(ll_falls, cols_rename, get_what = "cutpoints")
-# 
+#
 # plot_grid(
 #   plotlist = c(falls_inb_plots, falls_cp_plots),
 #   nrow = 2,
 #   labels = rep(g_falls$event_rate, 2)
 # )
-# 
+#
 # if (save_plots) {
 #   ggsave(filename = "output/sensitivity_analyses/falls_simulations_inb_for-deliverables_sanity-check.jpeg", height = 10, width = 45)
 # }
@@ -846,7 +842,7 @@ falls_axis_limits <- c(
 falls_inb_plots <- get_plot_list(
   ll_falls, cols_rename,
   get_what = "inb", inb_ref_col = "Treat All",
-  # groups_remove = "Cost- Minimising", 
+  # groups_remove = "Cost- Minimising",
   only_show_interval = F,
   x_lims_list = falls_axis_limits
 )
@@ -895,9 +891,9 @@ icu_axis_limits <- c(
 
 # ICU discharge
 icu_inb_plots <- get_plot_list(
-  ll_icu, cols_rename, 
+  ll_icu, cols_rename,
   get_what = "inb", inb_ref_col = "Treat None",
-  # groups_remove = "Cost- Minimising", 
+  # groups_remove = "Cost- Minimising",
   only_show_interval = F,
   x_lims_list = icu_axis_limits
 )
@@ -983,50 +979,219 @@ make_table(
 ```{r}
 example_cfg <- list(
   auc = 0.85,
-  event_rate = 0.1,
+  event_rate = 0.15,
   sample_size = 1000,
-  min_events = 0.1*1000
+  min_events = 0.1 * 1000
 )
 
 train_data <- get_sample(
-  auc = example_cfg$auc, 
-  n_samples = example_cfg$sample_size, 
-  prevalence = example_cfg$event_rate, 
+  auc = example_cfg$auc,
+  n_samples = example_cfg$sample_size,
+  prevalence = example_cfg$event_rate,
   min_events = example_cfg$min_events
 )
 
 model <- glm(actual ~ predicted, data = train_data, family = binomial())
 
-train_data$preds_proba <- predict(model, type="response")
+train_data$preds_proba <- predict(model, type = "response")
 
 thresholds_df <- predictNMB::get_thresholds(
-  predicted=train_data$preds_proba, 
+  predicted = train_data$preds_proba,
   actual = train_data$actual,
   nmb = get_nmb_est()
 ) %>%
   as.data.frame() %>%
   rename("value" = 1) %>%
   rownames_to_column("method") %>%
-  filter(method %in% c("all", "none", "value_optimising", "roc01", "youden"))
+  filter(method %in% c("all", "none", "value_optimising", "youden")) %>%
+  mutate(
+    method = recode(
+      method,
+      "all" = "Treat all",
+      "none" = "Treat none",
+      "value_optimising" = "Value-optimising",
+      "youden" = "Youden Index"
+    )
+  )
 
-thresholds_df
-
-plot_data <- 
+plot_data <-
   train_data %>%
-  mutate(actual = as.factor(actual)) 
+  mutate(
+    actual = ifelse(actual == 0, "Non-faller", "Faller"),
+    actual = factor(actual, levels = c("Non-faller", "Faller"))
+  )
 
-ggplot() + 
+example_plot_1 <-
+  ggplot() +
   geom_histogram(
-    data = plot_data, 
-    aes(x=preds_proba, fill=actual), 
-    alpha=0.7, 
-    position="identity"
+    data = plot_data,
+    aes(x = preds_proba, fill = actual),
+    alpha = 0.6,
+    position = "identity",
+    bins = 50
   ) +
-  geom_vline(
+  geom_segment(
     data = thresholds_df,
-    aes(xintercept = value, colour = method)
+    aes(x = value, xend = value, y = 0, yend = Inf, col = method),
+    size = 1.5
   ) +
-  theme_bw()
+  geom_text(
+    data = thresholds_df,
+    aes(x = value + 0.025, y = 150, label = method, col = method),
+    hjust = 1,
+    angle = 90,
+    size = 3.3,
+    show.legend = FALSE
+  ) +
+  scale_color_brewer(type = "qual", palette = "Dark2") +
+  theme_bw() +
+  labs(
+    y = "Frequency (count)",
+    x = "Predicted probability of fall (%)",
+    col = "Cutpoint method",
+    fill = ""
+  ) +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+  theme(legend.position = "left")
+```
 
+```{r}
+
+fx_get_sens_spec <- function(actual, predicted, cutpoint) {
+  cm <-
+    data.frame(actual = actual, proba = predicted) %>%
+    group_by(actual, predicted = proba > cutpoint) %>%
+    summarize(n = n(), .groups = "drop") %>%
+    ungroup()
+
+  # if the cutpoint is above or below ALL predicted probs, add the empty rows to confusion matrix
+  if (nrow(cm) != 4) {
+    cm <- rbind(
+      cm,
+      data.frame(
+        actual = c(0, 1),
+        predicted = !unique(cm$predicted),
+        n = 0
+      )
+    )
+  }
+  cp_fp <-
+    cm %>%
+    filter(predicted == 1, actual == 0) %>%
+    pull(n)
+
+  cp_fn <-
+    cm %>%
+    filter(predicted == 0, actual == 1) %>%
+    pull(n)
+
+  cp_tp <-
+    cm %>%
+    filter(predicted == 1, actual == 1) %>%
+    pull(n)
+
+  cp_tn <-
+    cm %>%
+    filter(predicted == 0, actual == 0) %>%
+    pull(n)
+
+
+  c(
+    "sensitivity" = sensitivity(tp = cp_tp, fn = cp_fn),
+    "specificity" = specificity(fp = cp_fp, tn = cp_tn)
+  )
+}
+
+f_get_sens <- function(cutpoint) {
+  fx_get_sens_spec(
+    actual = train_data$actual,
+    predicted = train_data$preds_proba,
+    cutpoint = cutpoint
+  )["sensitivity"]
+}
+
+f_get_spec <- function(cutpoint) {
+  fx_get_sens_spec(
+    actual = train_data$actual,
+    predicted = train_data$preds_proba,
+    cutpoint = cutpoint
+  )["specificity"]
+}
+
+thresholds_df <-
+  thresholds_df %>%
+  rowwise() %>%
+  mutate(
+    specificity = f_get_spec(value),
+    sensitivity = f_get_sens(value)
+  )
+
+f_make_proc_df <- function() {
+  probs <- train_data$preds_proba
+  l <- lapply(
+    probs,
+    function(x) {
+      fx_get_sens_spec(
+        actual = train_data$actual,
+        predicted = train_data$preds_proba,
+        cutpoint = x
+      )
+    }
+  )
+
+  cbind(preds_proba = probs, do.call("rbind", l))
+}
+
+proc_df <- f_make_proc_df()
+
+proc_df2 <-
+  proc_df %>%
+  as.data.frame() %>%
+  select(preds_proba, sensitivity, specificity = specificity1)
+
+
+example_plot_2 <-
+  ggplot() +
+  geom_point(
+    data = proc_df2,
+    aes(sensitivity, specificity),
+    size = 1
+  ) +
+  geom_point(
+    data = thresholds_df,
+    aes(x = sensitivity, y = specificity, col = method),
+    size = 4,
+    show.legend = FALSE
+  ) +
+  scale_x_reverse() +
+  theme_bw() +
+  labs(
+    y = "Specificity",
+    x = "Sensitivity",
+    col = "Cutpoint method"
+  ) +
+  scale_color_brewer(palette = "Dark2") +
+  coord_equal()
+```
+
+
+# combine the two plots for example figure
+```{r}
+shared_legend <- cowplot::get_legend(example_plot_1)
+
+p_combined <- plot_grid(
+  shared_legend,
+  example_plot_1 + theme(legend.position = "none", aspect.ratio = 1),
+  example_plot_2,
+  nrow = 1,
+  rel_widths = c(0.15, 0.5, 0.5)
+)
+
+if (save_plots) {
+  ggsave(
+    filename = "output/example-cutpoint-figure.jpeg", dpi = 600,
+    plot = p_combined, height = 4 * 1.3, width = 8 * 1.3
+  )
+}
 ```
 
