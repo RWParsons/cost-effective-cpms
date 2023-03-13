@@ -384,16 +384,16 @@ if (do_new_analyses | !file.exists("output/calibration_experiment/calibration_si
 cols_rename <- c(
   "Treat All" = "treat_all",
   "Treat None" = "treat_none",
-  "Value- Optimising" = "cost_effective",
+  "Value- Optimizing" = "cost_effective",
   "Closest to (0, 1)" = "er",
   "Youden" = "youden",
   "Sens-Spec product" = "cz",
   "Index of Union" = "iu",
-  "Cost- Minimising" = "cost_minimising"
+  "Cost- Minimizing" = "cost_minimising"
 )
 
 
-exclude_groups <- TRUE
+exclude_groups <- FALSE
 # save_plots <- TRUE
 if (exclude_groups) {
   groups_remove <- c("Treat None", "Closest to (0, 1)", "Youden", "Sens-Spec product", "Index of Union")
@@ -538,12 +538,12 @@ icu_simulation <- readRDS("output/primary_analyses/icu_primary_analyses.rds")
 cols_rename <- c(
   "Treat All" = "treat_all",
   "Treat None" = "treat_none",
-  "Value- Optimising" = "cost_effective",
+  "Value- Optimizing" = "cost_effective",
   "Closest to (0, 1)" = "er",
   "Youden" = "youden",
   "Sens-Spec product" = "cz",
   "Index of Union" = "iu",
-  "Cost- Minimising" = "cost_minimising"
+  "Cost- Minimizing" = "cost_minimising"
 )
 
 PA_CFG <- list(agg_line_size = 1)
@@ -1009,7 +1009,7 @@ thresholds_df <- predictNMB::get_thresholds(
       method,
       "all" = "Treat all",
       "none" = "Treat none",
-      "value_optimising" = "Value-optimising",
+      "value_optimising" = "Value-optimizing",
       "youden" = "Youden Index"
     )
   )
